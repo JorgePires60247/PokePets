@@ -48,7 +48,15 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             // Extract the name from the route and pass it to the screen
                             val petName = backStackEntry.arguments?.getString("petName") ?: "PokePet"
-                            PetMainScreen(petName = petName)
+                            PetMainScreen(navController = navController, petName = petName)
+                        }
+
+                        composable("camera_screen") {
+                            CameraScreen(navController = navController)
+                        }
+
+                        composable("bathroom_screen") {
+                            BathroomScreen(navController = navController)
                         }
                     }
                 }
