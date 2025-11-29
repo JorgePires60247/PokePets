@@ -95,10 +95,6 @@ fun VitalStatesSection() {
         // Replace R.drawable.hp_icon, etc., with your actual file names
         VitalStat(iconRes = R.drawable.hp_icon, color = Color.Red, label = "Health", level = 0.9f)
         Spacer(modifier = Modifier.height(8.dp))
-        VitalStat(iconRes = R.drawable.energy_icon, color = Color.Yellow, label = "Energy", level = 0.8f)
-        Spacer(modifier = Modifier.height(8.dp))
-        VitalStat(iconRes = R.drawable.happiness_icon, color = Color.Green, label = "Happiness", level = 0.7f)
-        Spacer(modifier = Modifier.height(8.dp))
         VitalStat(iconRes = R.drawable.clean_icon, color = Color.Blue, label = "Hygiene", level = 0.8f)
         Spacer(modifier = Modifier.height(8.dp))
         VitalStat(iconRes = R.drawable.hunger_icon, color = Color.Magenta, label = "Food", level = 0.6f)
@@ -142,7 +138,6 @@ fun ActionButtonsRow(navController: NavController) {
         ActionButton(iconRes = R.drawable.energy_page_icon, label = "Energy", onClick = { navController.navigate("energy_screen") })
         ActionButton(iconRes = R.drawable.hunger_icon, label = "Food", onClick = { navController.navigate("food_screen") })
         ActionButton(iconRes = R.drawable.clean_page_icon, label = "Hygiene", onClick = { navController.navigate("bathroom_screen") })
-        ActionButton(iconRes = R.drawable.happiness_icon, label = "Happiness", onClick = { navController.navigate("happiness_screen") })
     }
 }
 
