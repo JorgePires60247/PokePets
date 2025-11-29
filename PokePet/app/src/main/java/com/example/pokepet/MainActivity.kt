@@ -18,37 +18,47 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            PokePetTheme {
+            PokePetTheme(darkTheme = false, dynamicColor = false) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // 1. Create a NavController
                     val navController = rememberNavController()
 
-                    // 2. Set up the NavHost with routes
                     NavHost(
                         navController = navController,
-                        startDestination = "hatching_screen" // The first screen to show
+                        startDestination = "login_screen" // Updated start destination
                     ) {
-                        // Define the "hatching" screen
+                        composable("login_screen") { // New route for the login screen
+                            LoginScreen(navController = navController)
+                        }
+
+                        composable("signup_screen") { // New route for the signup screen
+                            SignUpScreen(navController = navController)
+                        }
+                        
                         composable("hatching_screen") {
                             PokePetScreen(
                                 onNameConfirmed = { petName ->
-                                    // When name is confirmed, navigate to the main screen
                                     navController.navigate("main_screen/$petName")
                                 }
                             )
                         }
 
-                        // Define the "main" screen, which accepts a petName argument
                         composable(
                             route = "main_screen/{petName}",
                             arguments = listOf(navArgument("petName") { type = NavType.StringType })
                         ) { backStackEntry ->
-                            // Extract the name from the route and pass it to the screen
                             val petName = backStackEntry.arguments?.getString("petName") ?: "PokePet"
-                            PetMainScreen(petName = petName)
+                            PetMainScreen(navController = navController, petName = petName)
+                        }
+
+                        composable("camera_screen") {
+                            CameraScreen(navController = navController)
+                        }
+
+                        composable("bathroom_screen") {
+                            BathroomScreen(navController = navController)
                         }
                     }
                 }

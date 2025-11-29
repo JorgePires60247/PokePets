@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
+
 // Note the new parameter: onNameConfirmed
 @Composable
 fun PokePetScreen(onNameConfirmed: (String) -> Unit = {}) {

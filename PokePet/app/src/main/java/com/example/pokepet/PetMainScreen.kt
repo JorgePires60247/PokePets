@@ -3,10 +3,7 @@ package com.example.pokepet
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-// Import Scaffold
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,63 +15,58 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 
 // This is the main composable for the new screen
 @Composable
-fun PetMainScreen(petName: String) { // It can receive the pet's name
-    // 1. Wrap the entire screen in a Scaffold
-    Scaffold(
-        // 2. Place the ActionButtonsRow in the bottomBar slot
-        bottomBar = {
-            // Add some padding to the bottom bar itself for better spacing
-            ActionButtonsRow(modifier = Modifier.padding(bottom = 16.dp))
-        }
-    ) { innerPadding -> // Scaffold provides padding for the content area
-        Column(
-            // 3. Apply the Scaffold's inner padding to the main content
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding) // Use padding from Scaffold
-                .padding(horizontal = 16.dp) // Add your own horizontal padding
-                .padding(top = 16.dp), // Add top padding)
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Top text section
-            Text(
-                text = "Yay! $petName has hatched!", // Personalized with the pet's name
-                fontSize = 18.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "What would you like to do first?",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+fun PetMainScreen(petName: String, navController: NavController) { // It can receive the pet's name
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Top text section
+        Text(
+            text = "Yay! $petName has hatched!", // Personalized with the pet's name
+            fontSize = 18.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "What would you like to do first?",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Main pet image placeholder
-            AsyncImage(
-                model = R.drawable.happy, // Placeholder - you can change this later
-                contentDescription = "Main Pet Image",
-                modifier = Modifier.size(180.dp)
-            )
+        // Main pet image placeholder
+        AsyncImage(
+            model = R.drawable.happy, // Placeholder - you can change this later
+            contentDescription = "Main Pet Image",
+            modifier = Modifier.size(180.dp)
+        )
 
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-            // This is a placeholder for the small blue bar under the pet
-            LinearProgressIndicator(progress = { 0.8f }, modifier = Modifier.width(180.dp))
+        // This is a placeholder for the small blue bar under the pet
+        LinearProgressIndicator(progress = { 0.8f }, modifier = Modifier.width(180.dp))
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Vital States section
-            VitalStatesSection()
+        // Vital States section
+        VitalStatesSection()
 
-            // 4. The Spacer that pushed the buttons to the bottom is NO LONGER NEEDED
-            // Spacer(modifier = Modifier.weight(1f))
-        }
+        // Spacer to push the action buttons to the bottom
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Bottom action buttons
+        ActionButtonsRow(navController = navController)
     }
 }
 
@@ -91,11 +83,16 @@ fun VitalStatesSection() {
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Dropdown Arrow"
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Individual stat bars
+        // Individual stat bars - ** NOW USING YOUR DRAWABLES **
+        // Replace R.drawable.hp_icon, etc., with your actual file names
         VitalStat(iconRes = R.drawable.hp_icon, color = Color.Red, label = "Health", level = 0.9f)
         Spacer(modifier = Modifier.height(8.dp))
         VitalStat(iconRes = R.drawable.energy_icon, color = Color.Yellow, label = "Energy", level = 0.8f)
@@ -108,16 +105,18 @@ fun VitalStatesSection() {
     }
 }
 
+// UPDATED to accept a Drawable Resource ID
 @Composable
 fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Float) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // UPDATED to use Image instead of Icon
         Image(
             painter = painterResource(id = iconRes),
             contentDescription = label,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(24.dp) // Set a size for your icon
         )
         Spacer(modifier = Modifier.width(16.dp))
         LinearProgressIndicator(
@@ -131,45 +130,38 @@ fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Flo
     }
 }
 
-data class ActionItem(@DrawableRes val iconRes: Int, val label: String)
-
 @Composable
-fun ActionButtonsRow(modifier: Modifier = Modifier) { // Accept a modifier
-    val actionItems = listOf(
-        ActionItem(R.drawable.energy_page_icon, "Bedroom"),
-        ActionItem(R.drawable.hunger_icon, "Feed"),
-        ActionItem(R.drawable.clean_page_icon, "Bathroom"),
-        ActionItem(R.drawable.happiness_page_icon, "Playground"),
-        ActionItem(R.drawable.camera_page_icon, "Camera")
-    )
-
-    // Using LazyRow for a conventional horizontal scroll
-    LazyRow(
-        modifier = modifier.fillMaxWidth(), // Apply modifier here
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+fun ActionButtonsRow(navController: NavController) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        items(actionItems) { item ->
-            ActionButton(iconRes = item.iconRes, label = item.label)
-        }
+        // ** NOW USING YOUR DRAWABLES **
+        // Replace R.drawable.action_energy, etc., with your actual button image names
+        ActionButton(iconRes = R.drawable.energy_page_icon, label = "Energy", onClick = { navController.navigate("energy_screen") })
+        ActionButton(iconRes = R.drawable.hunger_icon, label = "Food", onClick = { navController.navigate("food_screen") })
+        ActionButton(iconRes = R.drawable.clean_page_icon, label = "Hygiene", onClick = { navController.navigate("bathroom_screen") })
+        ActionButton(iconRes = R.drawable.happiness_icon, label = "Happiness", onClick = { navController.navigate("happiness_screen") })
     }
 }
 
+// UPDATED to accept a Drawable Resource ID
 @Composable
-fun ActionButton(@DrawableRes iconRes: Int, label: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+fun ActionButton(@DrawableRes iconRes: Int, label: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
+            onClick = onClick,
             modifier = Modifier.size(64.dp),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant,
             shadowElevation = 2.dp
         ) {
+            // UPDATED to use Image instead of Icon
             Image(
                 painter = painterResource(id = iconRes),
                 contentDescription = label,
-                modifier = Modifier.padding(12.dp)
+                modifier = Modifier.padding(12.dp) // Adjust padding as needed
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -177,8 +169,12 @@ fun ActionButton(@DrawableRes iconRes: Int, label: String) {
     }
 }
 
+// Preview function to see the screen in Android Studio's design mode
 @Preview(showBackground = true)
 @Composable
 fun PetMainScreenPreview() {
-    PetMainScreen(petName = "Pikachu")
+    // You'll need to add dummy drawable resources for the preview to work without errors
+    // For example, create ic_arrow_drop_down.xml, hp_icon.xml etc. in the drawable folder.
+    // You can use the built-in vector asset studio for this.
+    PetMainScreen(petName = "Pikachu", navController = rememberNavController())
 }
