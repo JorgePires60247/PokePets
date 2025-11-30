@@ -2,6 +2,7 @@ package com.example.pokepet
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -17,7 +18,7 @@ import androidx.navigation.NavController
 import com.example.pokepet.R
 
 @Composable
-fun PotionsScreen(navController: NavController) {
+fun ExploreScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,7 +49,7 @@ fun PotionsScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Potions",
+            text = "Explore",
             fontSize = 20.sp,
             color = Color(0xFF333333),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -58,27 +59,47 @@ fun PotionsScreen(navController: NavController) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                PotionIcon(R.drawable.ic_fullheal, "Full Heal")
-                PotionIcon(R.drawable.ic_potion, "Potion")
-                PotionIcon(R.drawable.ic_fullheart, "Full Heart")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                PotionIcon(R.drawable.ic_fullclean, "Full Clean")
-                PotionIcon(R.drawable.ic_fullhunger, "Full Hunger")
+            Row(
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ExploreIcon(
+                    iconRes = R.drawable.ic_map,
+                    label = "Map",
+                    onClick = {}
+                )
+                ExploreIcon(
+                    iconRes = R.drawable.ic_pokeball,
+                    label = "Pokeballs",
+                    onClick = { navController.navigate("pokeballs_screen") }
+                )
+                ExploreIcon(
+                    iconRes = R.drawable.ic_fishingrod,
+                    label = "Tools",
+                    onClick = { navController.navigate("tools_screen")}
+                )
             }
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Get a Map to explore.",
+            fontSize = 14.sp,
+            color = Color(0xFF666666),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
 @Composable
-fun PotionIcon(iconRes: Int, label: String) {
+fun ExploreIcon(iconRes: Int, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .background(Color(0xFFE0E0E0), shape = CircleShape),
+                .background(Color(0xFFE0E0E0), shape = CircleShape)
+                .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(

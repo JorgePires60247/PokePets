@@ -43,7 +43,7 @@ fun PokeCenterScreen(navController: NavController) {
                 .padding(vertical = 16.dp)
         )
 
-        // Barra de progresso amarela
+        // Barra de progresso xp
         LinearProgressIndicator(
             progress = 0.7f,
             modifier = Modifier
@@ -85,8 +85,9 @@ fun PokeCenterScreen(navController: NavController) {
             CircularIconButton(
                 iconRes = R.drawable.ic_pokeball,
                 label = "Explore",
-                onClick = { /* ação futura */ }
+                onClick = { navController.navigate("explore_screen") }
             )
+
         }
 
         Spacer(modifier = Modifier.height(24.dp))

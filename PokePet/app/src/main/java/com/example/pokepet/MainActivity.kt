@@ -74,6 +74,17 @@ class MainActivity : ComponentActivity() {
                             PotionsScreen(navController = navController)
                         }
 
+                        composable("explore_screen") {
+                            ExploreScreen(navController = navController)
+                        }
+
+                        composable("pokeballs_screen") {
+                            PokeballsScreen(navController = navController)
+                        }
+
+                        composable("tools_screen") {
+                            ToolsScreen(navController = navController)
+                        }
                     }
                 }
             }

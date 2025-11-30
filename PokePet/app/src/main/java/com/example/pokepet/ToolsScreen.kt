@@ -2,6 +2,7 @@ package com.example.pokepet
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -17,7 +18,7 @@ import androidx.navigation.NavController
 import com.example.pokepet.R
 
 @Composable
-fun PotionsScreen(navController: NavController) {
+fun ToolsScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,7 +49,7 @@ fun PotionsScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Potions",
+            text = "Tools",
             fontSize = 20.sp,
             color = Color(0xFF333333),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -59,26 +60,22 @@ fun PotionsScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                PotionIcon(R.drawable.ic_fullheal, "Full Heal")
-                PotionIcon(R.drawable.ic_potion, "Potion")
-                PotionIcon(R.drawable.ic_fullheart, "Full Heart")
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                PotionIcon(R.drawable.ic_fullclean, "Full Clean")
-                PotionIcon(R.drawable.ic_fullhunger, "Full Hunger")
+                ToolIcon(R.drawable.ic_fishingrod, "Fishing Rod")
+                ToolIcon(R.drawable.ic_backpack, "Backpack")
+                ToolIcon(R.drawable.ic_identifier, "Identifier")
             }
         }
     }
 }
 
 @Composable
-fun PotionIcon(iconRes: Int, label: String) {
+fun ToolIcon(iconRes: Int, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .background(Color(0xFFE0E0E0), shape = CircleShape),
+                .background(Color(0xFFE0E0E0), shape = CircleShape)
+                .clickable { /*  */ },
             contentAlignment = Alignment.Center
         ) {
             Icon(
