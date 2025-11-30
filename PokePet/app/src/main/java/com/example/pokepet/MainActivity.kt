@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.pokepet.ui.theme.PokePetTheme
+import com.teuapp.ui.FirstPageScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +46,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        composable("first_page_screen") {
+                            FirstPageScreen(
+                                onPokeCenterClick = { navController.navigate("pokecenter_screen") },
+                                onFoodClick = { navController.navigate("food_screen") },
+                                onHygieneClick = { navController.navigate("bathroom_screen") }
+                            )
+                        }
+
                         composable(
                             route = "main_screen/{petName}",
                             arguments = listOf(navArgument("petName") { type = NavType.StringType })
@@ -60,6 +69,11 @@ class MainActivity : ComponentActivity() {
                         composable("bathroom_screen") {
                             BathroomScreen(navController = navController)
                         }
+
+                        composable("potions_screen") {
+                            PotionsScreen(navController = navController)
+                        }
+
                     }
                 }
             }

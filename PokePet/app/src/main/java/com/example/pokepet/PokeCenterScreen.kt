@@ -71,7 +71,7 @@ fun PokeCenterScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Botões inferiores
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
@@ -79,8 +79,9 @@ fun PokeCenterScreen(navController: NavController) {
             CircularIconButton(
                 iconRes = R.drawable.ic_potion,
                 label = "Potions",
-                onClick = { /* ação futura */ }
+                onClick = { navController.navigate("potions_screen") }
             )
+
             CircularIconButton(
                 iconRes = R.drawable.ic_pokeball,
                 label = "Explore",
