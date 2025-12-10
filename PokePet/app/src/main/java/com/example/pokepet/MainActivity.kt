@@ -28,16 +28,17 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = "login_screen" // Updated start destination
+                        startDestination = "login_screen"
                     ) {
-                        composable("login_screen") { // New route for the login screen
+                        // Login & Signup
+                        composable("login_screen") {
                             LoginScreen(navController = navController)
                         }
-
-                        composable("signup_screen") { // New route for the signup screen
+                        composable("signup_screen") {
                             SignUpScreen(navController = navController)
                         }
-                        
+
+                        // Hatching flow
                         composable("hatching_screen") {
                             PokePetScreen(
                                 onNameConfirmed = { petName ->
@@ -46,6 +47,8 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+
+                        // First page with navigation options
                         composable("first_page_screen") {
                             FirstPageScreen(
                                 onPokeCenterClick = { navController.navigate("pokecenter_screen") },
@@ -54,6 +57,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        // Main screen with pet name
                         composable(
                             route = "main_screen/{petName}",
                             arguments = listOf(navArgument("petName") { type = NavType.StringType })
@@ -62,28 +66,14 @@ class MainActivity : ComponentActivity() {
                             PetMainScreen(navController = navController, petName = petName)
                         }
 
-                        composable("camera_screen") {
-                            CameraScreen(navController = navController)
-                        }
-
-                        composable("bathroom_screen") {
-                            BathroomScreen(navController = navController)
-                        }
-
-                        composable("potions_screen") {
-                            PotionsScreen(navController = navController)
-                        }
-
-                        composable("explore_screen") {
-                            ExploreScreen(navController = navController)
-                        }
-
-                        composable("pokeballs_screen") {
-                            PokeballsScreen(navController = navController)
-                        }
-
-                        composable("tools_screen") {
-                            ToolsScreen(navController = navController)
+                        // Other feature screens
+                        composable("camera_screen") { CameraScreen(navController = navController) }
+                        composable("bathroom_screen") { BathroomScreen(navController = navController) }
+                        composable("potions_screen") { PotionsScreen(navController = navController) }
+                        composable("explore_screen") { ExploreScreen(navController = navController) }
+                        composable("pokeballs_screen") { PokeballsScreen(navController = navController) }
+                        composable("tools_screen") { ToolsScreen(navController = navController) }
+                        composable("food_screen") { FoodScreen(navController = navController)
                         }
                     }
                 }
