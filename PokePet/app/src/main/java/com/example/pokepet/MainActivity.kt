@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.pokepet.ui.theme.PokePetTheme
-import com.teuapp.ui.FirstPageScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +25,9 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+
+                    // Criação do ViewModel compartilhado
+                    val petViewModel: PetViewModel = viewModel()
 
                     NavHost(
                         navController = navController,
@@ -38,7 +41,7 @@ class MainActivity : ComponentActivity() {
                             SignUpScreen(navController = navController)
                         }
 
-                        // Hatching flow
+                        // Fluxo de Hatching
                         composable("hatching_screen") {
                             PokePetScreen(
                                 onNameConfirmed = { petName ->
@@ -47,34 +50,38 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-
-                        // First page with navigation options
-                        composable("first_page_screen") {
-                            FirstPageScreen(
-                                onPokeCenterClick = { navController.navigate("pokecenter_screen") },
-                                onFoodClick = { navController.navigate("food_screen") },
-                                onHygieneClick = { navController.navigate("bathroom_screen") }
-                            )
-                        }
-
-                        // Main screen with pet name
+                        // Tela Principal (PetMainScreen)
                         composable(
                             route = "main_screen/{petName}",
                             arguments = listOf(navArgument("petName") { type = NavType.StringType })
                         ) { backStackEntry ->
                             val petName = backStackEntry.arguments?.getString("petName") ?: "PokePet"
-                            PetMainScreen(navController = navController, petName = petName)
+                            PetMainScreen(
+                                navController = navController,
+                                petName = petName,
+                                viewModel = petViewModel
+                            )
                         }
 
-                        // Other feature screens
-                        composable("camera_screen") { CameraScreen(navController = navController) }
-                        composable("bathroom_screen") { BathroomScreen(navController = navController) }
+
+
+                        // Tela de Banheiro (BathroomScreen)
+                        composable("bathroom_screen") {
+                            BathroomScreen(navController = navController, viewModel = petViewModel)
+                        }
+
+                        composable("food_screen") {
+                            FoodScreen(navController = navController, viewModel = petViewModel)
+                        }
+
+                        // Telas de funcionalidades (Movidas para dentro do NavHost)
                         composable("potions_screen") { PotionsScreen(navController = navController) }
                         composable("explore_screen") { ExploreScreen(navController = navController) }
                         composable("pokeballs_screen") { PokeballsScreen(navController = navController) }
                         composable("tools_screen") { ToolsScreen(navController = navController) }
-                        composable("food_screen") { FoodScreen(navController = navController)
-                        }
+
+                        // Tela do PokeCenter
+                        composable("pokecenter_screen") { PokeCenterScreen(navController = navController) }
                     }
                 }
             }

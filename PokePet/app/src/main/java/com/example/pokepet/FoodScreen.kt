@@ -16,6 +16,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -37,7 +38,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +48,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-// Define the names for the berries for easier tracking
+// Definição dos tipos de bagas
 sealed class BerryType(val id: Int, @DrawableRes val resId: Int, val label: String) {
     data object Chesto : BerryType(1, R.drawable.chesto_berry, "Chesto Berry")
     data object Sitrus : BerryType(2, R.drawable.cheri_berry, "Sitrus Berry")
@@ -57,70 +57,43 @@ sealed class BerryType(val id: Int, @DrawableRes val resId: Int, val label: Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FoodScreen(navController: NavController) {
-    // State for UI text instruction
-    var currentInstruction by remember { mutableStateOf("Drag the ingredients to the pot!") }
-
-    // State for tracking dropped ingredients
+fun FoodScreen(
+    navController: NavController,
+    viewModel: PetViewModel // Integrado para atualizar XP e Fome
+) {
+    var currentInstruction by remember { mutableStateOf("Arrasta os ingredientes para a panela!") }
     val droppedBerries = remember { mutableStateSetOf<Int>() }
-
-    // State for tracking the mixing stage (Shake)
     var isMixed by remember { mutableStateOf(false) }
-
-    // State for tracking the cooling stage (Blow)
     var isCooled by remember { mutableStateOf(false) }
-
-    // State for the food image drawable ID (Pot, Hot Curry, or Cooled Curry Bowl)
-    val foodImageRes = remember {
-        mutableStateOf(R.drawable.cooking_pot)
-    }
-
-    // State for the pot's screen boundaries (used for drag-and-drop hit detection)
+    val foodImageRes = remember { mutableStateOf(R.drawable.cooking_pot) }
     var potBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
 
-    // Constants for the berry list
-    val berries = listOf(
-        BerryType.Chesto,
-        BerryType.Sitrus,
-        BerryType.Oran
-    )
+    val berries = listOf(BerryType.Chesto, BerryType.Sitrus, BerryType.Oran)
+    val allBerriesDropped by remember { derivedStateOf { droppedBerries.size == berries.size } }
 
-    // Derived state to check if all berries have been dropped
-    val allBerriesDropped by remember {
-        derivedStateOf { droppedBerries.size == berries.size }
-    }
-
-    // Effect to update instructions and trigger the transformations
+    // Gestão de estados e instruções
     LaunchedEffect(allBerriesDropped, isMixed, isCooled) {
         if (allBerriesDropped && !isMixed) {
-            currentInstruction = "Shake the phone to mix the ingredients"
+            currentInstruction = "Abana o telemóvel para misturar!"
         } else if (allBerriesDropped && isMixed && !isCooled) {
-            // State 2: Mixing done, now it's hot and needs cooling
             foodImageRes.value = R.drawable.hot_curry
-            currentInstruction = "The curry is hot! Blow into the mic to cool it down."
+            currentInstruction = "Está quente! Sopra para o microfone para arrefecer."
         } else if (allBerriesDropped && isMixed && isCooled) {
-            // State 3: Cooling done, ready to eat
             foodImageRes.value = R.drawable.curry_bowl
-            currentInstruction = "Food is ready! Tap Pikachu to feed."
+            currentInstruction = "Pronto! Clica no Pikachu para o alimentar."
         }
     }
 
-    // Conditionally register the shake detector ONLY when mixing is required
+    // Detectores de Sensores
     if (allBerriesDropped && !isMixed) {
-        ShakeDetector(
-            onShakeDetected = {
-                isMixed = true
-            }
-        )
+        ShakeDetector(onShakeDetected = { isMixed = true })
     }
 
-    // Conditionally register the blow detector ONLY when cooling is required
     if (allBerriesDropped && isMixed && !isCooled) {
-        BlowDetector(
-            onBlowDetected = {
-                isCooled = true
-            }
-        )
+        BlowDetector(onBlowDetected = {
+            isCooled = true
+            viewModel.feed() // Atualiza progresso no ViewModel
+        })
     }
 
     Scaffold(
@@ -128,115 +101,67 @@ fun FoodScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Cooking Lounge") },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        navController.navigate("PetMainScreen")
-                    }) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
     ) { paddingValues ->
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
+                Text(text = "Ingredients", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
 
-                // Ingredients title
-                Text(
-                    text = "Ingredients",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .align(Alignment.Start)
-                        .padding(start = 4.dp, bottom = 12.dp)
-                )
-
-                // Ingredients Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     berries.forEach { berry ->
                         DraggableBerryItem(
                             berry = berry,
                             isDropped = berry.id in droppedBerries,
                             potBounds = potBounds,
-                            onDropSuccess = {
-                                droppedBerries.add(berry.id)
-                            }
+                            onDropSuccess = { droppedBerries.add(berry.id) }
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
-
-                // Instruction Text
-                Text(
-                    text = currentInstruction,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center
-                )
-
+                Text(text = currentInstruction, fontSize = 16.sp, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(76.dp))
 
-                // ANIMATION WRAPPER: AnimatedContent handles the transition
+                // Transformação animada do prato
                 AnimatedContent(
                     targetState = foodImageRes.value,
-                    transitionSpec = {
-                        // Fade in and scale in the new content, while fading out and scaling out the old content
-                        (fadeIn() + scaleIn(initialScale = 0.8f))
-                            .togetherWith(fadeOut() + scaleOut(targetScale = 0.8f))
-                    },
-                    label = "Food Image Transition"
+                    transitionSpec = { (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut()) },
+                    label = "FoodTransform"
                 ) { targetImageRes ->
-                    // Pot / Curry Plate Image
                     Image(
                         painter = painterResource(id = targetImageRes),
-                        contentDescription = when (targetImageRes) {
-                            R.drawable.cooking_pot -> "Cooking Pot"
-                            R.drawable.hot_curry -> "Hot Curry"
-                            R.drawable.curry_bowl -> "Cooled Curry Bowl"
-                            else -> "Food"
-                        },
+                        contentDescription = "Food",
                         modifier = Modifier
                             .size(320.dp)
                             .zIndex(1f)
-                            .onGloballyPositioned { coordinates ->
-                                potBounds = coordinates.boundsInRoot()
-                            }
+                            .onGloballyPositioned { potBounds = it.boundsInRoot() }
                     )
                 }
-
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            // Bigger Pikachu
             Image(
                 painter = painterResource(id = R.drawable.pikachu_happy),
-                contentDescription = "Happy Pikachu",
+                contentDescription = "Pikachu",
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 16.dp)
                     .size(140.dp)
+                    .clickable(enabled = isCooled) { navController.popBackStack() }
             )
         }
     }
 }
 
-
-/**
- * Composable for a draggable berry item. (STAGE 1)
- */
 @Composable
 fun DraggableBerryItem(
     berry: BerryType,
@@ -245,196 +170,82 @@ fun DraggableBerryItem(
     onDropSuccess: () -> Unit
 ) {
     if (isDropped) return
-
     var offset by remember { mutableStateOf(Offset.Zero) }
     var isDragging by remember { mutableStateOf(false) }
-
     val density = LocalDensity.current
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .offset {
-                IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-            }
+            .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
             .zIndex(if (isDragging) 2f else 0f)
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = {
-                        isDragging = true
-                    },
+                    onDragStart = { isDragging = true },
                     onDragEnd = {
                         isDragging = false
-
                         val itemSizePx = with(density) { 48.dp.toPx() }
                         val dropPoint = offset + Offset(itemSizePx / 2, itemSizePx / 2)
-
-                        if (potBounds.contains(dropPoint)) {
-                            onDropSuccess()
-                        } else {
-                            offset = Offset.Zero
-                        }
+                        if (potBounds.contains(dropPoint)) onDropSuccess() else offset = Offset.Zero
                     },
-                    onDragCancel = {
-                        isDragging = false
-                        offset = Offset.Zero
-                    },
-                    onDrag = { change: PointerInputChange, dragAmount: Offset ->
+                    onDrag = { change, dragAmount ->
                         change.consume()
-                        offset = offset + dragAmount
+                        offset += dragAmount
                     }
                 )
             }
     ) {
-        Image(
-            painter = painterResource(id = berry.resId),
-            contentDescription = berry.label,
-            modifier = Modifier.size(48.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
+        Image(painter = painterResource(id = berry.resId), contentDescription = berry.label, modifier = Modifier.size(48.dp))
         Text(text = berry.label, fontSize = 12.sp)
     }
 }
 
-
-/**
- * Hook to listen for shake events using the device's accelerometer. (STAGE 2)
- */
 @Composable
 fun ShakeDetector(onShakeDetected: () -> Unit) {
     val context = LocalContext.current
-
-    val sensorManager = remember {
-        context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    }
+    val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-
-    val SHAKE_THRESHOLD_GRAVITY = 2.7f
-    val SHAKE_SLOP_TIME_MS = 500L
-    var lastShakeTime = remember { 0L }
-
     val sensorListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                if (event == null) return
-
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-
-                val gForce = sqrt(x * x + y * y + z * z) / SensorManager.GRAVITY_EARTH
-
-                if (gForce > SHAKE_THRESHOLD_GRAVITY) {
-                    val currentTime = System.currentTimeMillis()
-                    if ((currentTime - lastShakeTime) > SHAKE_SLOP_TIME_MS) {
-                        lastShakeTime = currentTime
-                        onShakeDetected()
-                    }
+                event?.let {
+                    val gForce = sqrt(it.values[0] * it.values[0] + it.values[1] * it.values[1] + it.values[2] * it.values[2]) / SensorManager.GRAVITY_EARTH
+                    if (gForce > 2.7f) onShakeDetected()
                 }
             }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-                // Not used
-            }
+            override fun onAccuracyChanged(s: Sensor?, a: Int) {}
         }
     }
-
-    DisposableEffect(sensorListener, accelerometer) {
-        if (accelerometer != null) {
-            sensorManager.registerListener(
-                sensorListener,
-                accelerometer,
-                SensorManager.SENSOR_DELAY_UI
-            )
-        }
-
-        onDispose {
-            sensorManager.unregisterListener(sensorListener)
-        }
+    DisposableEffect(Unit) {
+        accelerometer?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
+        onDispose { sensorManager.unregisterListener(sensorListener) }
     }
 }
 
-/**
- * Hook to listen for a sudden spike in microphone amplitude ("blow" event). (STAGE 3)
- */
 @Composable
 fun BlowDetector(onBlowDetected: () -> Unit) {
-    // Configuration for AudioRecord
     val sampleRate = 8000
-    val channelConfig = AudioFormat.CHANNEL_IN_MONO
-    val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-    val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+    val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+    var audioRecord: AudioRecord? by remember { mutableStateOf(null) }
 
-    // Threshold (adjust based on device and testing)
-    // Measures the amplitude change needed to register a "blow"
-    val BLOW_THRESHOLD_DB = 0.05
-    val SILENCE_DB = 0.1
-
-    var audioRecord: AudioRecord? = remember { null }
-    val isListening = remember { mutableStateOf(false) }
-
-    // DisposableEffect manages the AudioRecord lifecycle
-    DisposableEffect(Unit) @androidx.annotation.RequiresPermission(android.Manifest.permission.RECORD_AUDIO) {
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
-            sampleRate,
-            channelConfig,
-            audioFormat,
-            bufferSize
-        ).apply {
-            try {
-                if (state == AudioRecord.STATE_INITIALIZED) {
-                    startRecording()
-                    isListening.value = true
-                }
-            } catch (e: SecurityException) {
-                // This will catch if RECORD_AUDIO permission is missing
-                println("ERROR: RECORD_AUDIO permission is missing.")
-            }
+    DisposableEffect(Unit) {
+        audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize).apply {
+            if (state == AudioRecord.STATE_INITIALIZED) startRecording()
         }
-
-        onDispose {
-            audioRecord?.stop()
-            audioRecord?.release()
-            audioRecord = null
-            isListening.value = false
-        }
+        onDispose { audioRecord?.stop(); audioRecord?.release() }
     }
 
-    // LaunchedEffect runs the continuous monitoring loop
-    LaunchedEffect(isListening.value) {
-        if (isListening.value && audioRecord != null) {
-            val buffer = ShortArray(bufferSize)
-            var lastAmplitude = 0.0
-
-            withContext(Dispatchers.IO) {
-                while (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                    val read = audioRecord!!.read(buffer, 0, bufferSize)
-
-                    if (read > 0) {
-                        var maxAmplitude = 0.0
-                        for (i in 0 until read) {
-                            maxAmplitude = max(maxAmplitude, buffer[i].toDouble())
-                        }
-
-                        // Convert max amplitude to decibels (dB)
-                        val currentDb = if (maxAmplitude > 0) {
-                            20 * log10(maxAmplitude / SILENCE_DB)
-                        } else {
-                            0.0
-                        }
-
-                        // Check for a sudden spike (a "blow")
-                        if (currentDb - lastAmplitude > BLOW_THRESHOLD_DB) {
-                            withContext(Dispatchers.Main) {
-                                onBlowDetected()
-                            }
-                        }
-
-                        lastAmplitude = currentDb
-                    }
-                    delay(100)
+    LaunchedEffect(Unit) {
+        val buffer = ShortArray(bufferSize)
+        withContext(Dispatchers.IO) {
+            while (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                val read = audioRecord?.read(buffer, 0, bufferSize) ?: 0
+                if (read > 0) {
+                    var maxAmp = 0.0
+                    for (i in 0 until read) maxAmp = max(maxAmp, buffer[i].toDouble())
+                    if (20 * log10(maxAmp / 0.1) > 15.0) withContext(Dispatchers.Main) { onBlowDetected() }
                 }
+                delay(100)
             }
         }
     }
