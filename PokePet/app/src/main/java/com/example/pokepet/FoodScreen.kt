@@ -5,28 +5,23 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,66 +35,93 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlin.math.log10
-import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-// Definição dos tipos de bagas
-sealed class BerryType(val id: Int, @DrawableRes val resId: Int, val label: String) {
-    data object Chesto : BerryType(1, R.drawable.chesto_berry, "Chesto Berry")
-    data object Sitrus : BerryType(2, R.drawable.cheri_berry, "Sitrus Berry")
-    data object Oran : BerryType(3, R.drawable.oran_berry, "Oran Berry")
+sealed class BerryType(
+    val id: Int,
+    @DrawableRes val resId: Int,
+    val label: String
+) {
+    object Chesto : BerryType(1, R.drawable.chesto_berry, "Chesto Berry")
+    object Sitrus : BerryType(2, R.drawable.cheri_berry, "Sitrus Berry")
+    object Oran : BerryType(3, R.drawable.oran_berry, "Oran Berry")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FoodScreen(
-    navController: NavController,
-    viewModel: PetViewModel // Integrado para atualizar XP e Fome
-) {
+fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
+    // ESTADOS DE JOGO
     var currentInstruction by remember { mutableStateOf("Arrasta os ingredientes para a panela!") }
     val droppedBerries = remember { mutableStateSetOf<Int>() }
-    var isMixed by remember { mutableStateOf(false) }
-    var isCooled by remember { mutableStateOf(false) }
-    val foodImageRes = remember { mutableStateOf(R.drawable.cooking_pot) }
-    var potBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var isMixed by remember { mutableStateOf(false) }      // Shake concluído
+    var isStirred by remember { mutableStateOf(false) }   // Gesto de mexer concluído
+    var isSeasoned by remember { mutableStateOf(false) }  // Toque rítmico concluído
 
+    // ESTADO DO GESTO DE MEXER
+    var stirDistance by remember { mutableFloatStateOf(0f) }
+    val requiredStirDistance = 2000f // Quantidade de movimento necessária
+
+    // ESTADOS DA BARRA DE TEMPERO
+    var seasoningProgress by remember { mutableFloatStateOf(0f) }
+    var movingUp by remember { mutableStateOf(true) }
+
+    // ESTADOS VISUAIS
+    val foodImageRes = remember { mutableIntStateOf(R.drawable.cooking_pot) }
+    var potBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val berries = listOf(BerryType.Chesto, BerryType.Sitrus, BerryType.Oran)
     val allBerriesDropped by remember { derivedStateOf { droppedBerries.size == berries.size } }
 
-    // Gestão de estados e instruções
-    LaunchedEffect(allBerriesDropped, isMixed, isCooled) {
-        if (allBerriesDropped && !isMixed) {
-            currentInstruction = "Abana o telemóvel para misturar!"
-        } else if (allBerriesDropped && isMixed && !isCooled) {
-            foodImageRes.value = R.drawable.hot_curry
-            currentInstruction = "Está quente! Sopra para o microfone para arrefecer."
-        } else if (allBerriesDropped && isMixed && isCooled) {
-            foodImageRes.value = R.drawable.curry_bowl
-            currentInstruction = "Pronto! Clica no Pikachu para o alimentar."
+    // 1. Animação da Barra de Tempero (Só ativa após mexer)
+    LaunchedEffect(isStirred, isSeasoned) {
+        if (isStirred && !isSeasoned) {
+            while (true) {
+                if (movingUp) {
+                    seasoningProgress += 0.04f
+                    if (seasoningProgress >= 1f) movingUp = false
+                } else {
+                    seasoningProgress -= 0.04f
+                    if (seasoningProgress <= 0f) movingUp = true
+                }
+                delay(20)
+            }
         }
     }
 
-    // Detectores de Sensores
-    if (allBerriesDropped && !isMixed) {
-        ShakeDetector(onShakeDetected = { isMixed = true })
+    // 2. Gestão de Fluxo, Instruções e Imagens
+    LaunchedEffect(allBerriesDropped, isMixed, isStirred, isSeasoned) {
+        when {
+            !allBerriesDropped -> {
+                currentInstruction = "Drag the berries down to the pot!"
+                foodImageRes.intValue = R.drawable.cooking_pot
+            }
+            allBerriesDropped && !isMixed -> {
+                currentInstruction = "Shake the phone to mix them all!"
+            }
+            isMixed && !isStirred -> {
+                foodImageRes.intValue = R.drawable.hot_curry
+                currentInstruction = "Mix the curry with your finger to cool it down!"
+            }
+            isStirred && !isSeasoned -> {
+                currentInstruction = "Time it just right to finish!"
+            }
+            isSeasoned -> {
+                foodImageRes.intValue = R.drawable.curry_bowl
+                currentInstruction = "All done! Click on the PokePet to feed it."
+            }
+        }
     }
 
-    if (allBerriesDropped && isMixed && !isCooled) {
-        BlowDetector(onBlowDetected = {
-            isCooled = true
-            viewModel.feed() // Atualiza progresso no ViewModel
-        })
+    // 3. Detector de Shake
+    if (allBerriesDropped && !isMixed) {
+        ShakeDetector(onShakeDetected = { isMixed = true })
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Cooking Lounge") },
+                title = { Text("Cozinha") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -114,53 +136,100 @@ fun FoodScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(text = "Ingredients", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    berries.forEach { berry ->
-                        DraggableBerryItem(
-                            berry = berry,
-                            isDropped = berry.id in droppedBerries,
-                            potBounds = potBounds,
-                            onDropSuccess = { droppedBerries.add(berry.id) }
-                        )
+                // Zona de Ingredientes
+                if (!isMixed) {
+                    Text("Ingredientes", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        berries.forEach { berry ->
+                            DraggableBerryItem(
+                                berry = berry,
+                                isDropped = berry.id in droppedBerries,
+                                potBounds = potBounds,
+                                onDropSuccess = { droppedBerries.add(berry.id) }
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
-                Text(text = currentInstruction, fontSize = 16.sp, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(76.dp))
+                Text(text = currentInstruction, fontSize = 16.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 20.dp))
 
-                // Transformação animada do prato
+                // BARRA VISUAL DE PROGRESSO (MEXER OU TEMPERAR)
+                Spacer(modifier = Modifier.height(20.dp))
+                if (isMixed && !isStirred) {
+                    // Barra de progresso do gesto de mexer
+                    LinearProgressIndicator(
+                        progress = { stirDistance / requiredStirDistance },
+                        modifier = Modifier.width(240.dp).height(10.dp).clip(RoundedCornerShape(5.dp)),
+                        color = Color(0xFFFFA500)
+                    )
+                } else if (isStirred && !isSeasoned) {
+                    // Mini-jogo do Tempero
+                    Box(modifier = Modifier.width(240.dp).height(30.dp).clip(RoundedCornerShape(15.dp)).background(Color.LightGray)) {
+                        Box(modifier = Modifier.fillMaxHeight().width(60.dp).align(Alignment.Center).background(Color(0xFF4CAF50)))
+                        Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(seasoningProgress).background(Color.Black.copy(alpha = 0.6f)))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // IMAGEM CENTRAL INTERATIVA
                 AnimatedContent(
-                    targetState = foodImageRes.value,
+                    targetState = foodImageRes.intValue,
                     transitionSpec = { (fadeIn() + scaleIn()).togetherWith(fadeOut() + scaleOut()) },
-                    label = "FoodTransform"
-                ) { targetImageRes ->
+                    label = "FoodAnim"
+                ) { targetRes ->
                     Image(
-                        painter = painterResource(id = targetImageRes),
-                        contentDescription = "Food",
+                        painter = painterResource(id = targetRes),
+                        contentDescription = null,
                         modifier = Modifier
-                            .size(320.dp)
+                            .size(300.dp)
                             .zIndex(1f)
                             .onGloballyPositioned { potBounds = it.boundsInRoot() }
+                            .pointerInput(isMixed, isStirred) {
+                                // DETETOR DE GESTO DE MEXER
+                                if (isMixed && !isStirred) {
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        // Somamos o movimento (x e y) à distância total
+                                        stirDistance += (Math.abs(dragAmount.x) + Math.abs(dragAmount.y))
+                                        if (stirDistance >= requiredStirDistance) {
+                                            isStirred = true
+                                        }
+                                    }
+                                }
+                            }
+                            .clickable(enabled = isStirred && !isSeasoned) {
+                                // DETETOR DE TOQUE NO TEMPERO
+                                if (seasoningProgress in 0.38f..0.62f) {
+                                    isSeasoned = true
+                                    viewModel.feed() // RECOMPENSA DE XP
+                                }
+                            }
                     )
                 }
+
                 Spacer(modifier = Modifier.weight(1f))
             }
 
+            // PIKACHU FINAL
             Image(
                 painter = painterResource(id = R.drawable.pikachu_happy),
                 contentDescription = "Pikachu",
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp)
-                    .size(140.dp)
-                    .clickable(enabled = isCooled) { navController.popBackStack() }
+                    .padding(bottom = 20.dp)
+                    .size(150.dp)
+                    .clickable(enabled = isSeasoned) {
+                        navController.popBackStack()
+                    }
             )
         }
     }
 }
+
+// --- COMPONENTES AUXILIARES ---
 
 @Composable
 fun DraggableBerryItem(
@@ -195,8 +264,8 @@ fun DraggableBerryItem(
                 )
             }
     ) {
-        Image(painter = painterResource(id = berry.resId), contentDescription = berry.label, modifier = Modifier.size(48.dp))
-        Text(text = berry.label, fontSize = 12.sp)
+        Image(painter = painterResource(id = berry.resId), contentDescription = null, modifier = Modifier.size(48.dp))
+        Text(berry.label, fontSize = 11.sp)
     }
 }
 
@@ -204,49 +273,22 @@ fun DraggableBerryItem(
 fun ShakeDetector(onShakeDetected: () -> Unit) {
     val context = LocalContext.current
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
-    val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
+
     val sensorListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 event?.let {
-                    val gForce = sqrt(it.values[0] * it.values[0] + it.values[1] * it.values[1] + it.values[2] * it.values[2]) / SensorManager.GRAVITY_EARTH
-                    if (gForce > 2.7f) onShakeDetected()
+                    val g = sqrt(it.values[0]*it.values[0] + it.values[1]*it.values[1] + it.values[2]*it.values[2]) / SensorManager.GRAVITY_EARTH
+                    if (g > 2.5f) onShakeDetected()
                 }
             }
             override fun onAccuracyChanged(s: Sensor?, a: Int) {}
         }
     }
+
     DisposableEffect(Unit) {
         accelerometer?.let { sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
         onDispose { sensorManager.unregisterListener(sensorListener) }
-    }
-}
-
-@Composable
-fun BlowDetector(onBlowDetected: () -> Unit) {
-    val sampleRate = 8000
-    val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-    var audioRecord: AudioRecord? by remember { mutableStateOf(null) }
-
-    DisposableEffect(Unit) {
-        audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize).apply {
-            if (state == AudioRecord.STATE_INITIALIZED) startRecording()
-        }
-        onDispose { audioRecord?.stop(); audioRecord?.release() }
-    }
-
-    LaunchedEffect(Unit) {
-        val buffer = ShortArray(bufferSize)
-        withContext(Dispatchers.IO) {
-            while (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                val read = audioRecord?.read(buffer, 0, bufferSize) ?: 0
-                if (read > 0) {
-                    var maxAmp = 0.0
-                    for (i in 0 until read) maxAmp = max(maxAmp, buffer[i].toDouble())
-                    if (20 * log10(maxAmp / 0.1) > 15.0) withContext(Dispatchers.Main) { onBlowDetected() }
-                }
-                delay(100)
-            }
-        }
     }
 }
