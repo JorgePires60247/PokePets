@@ -6,15 +6,16 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -24,13 +25,14 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 private sealed class WashingStep {
     object Idle : WashingStep()
@@ -38,187 +40,167 @@ private sealed class WashingStep {
     object ReadyToSoap : WashingStep()
     object Soaped : WashingStep()
     object Rinsing : WashingStep()
+    object ReadyToDry : WashingStep()
     object Clean : WashingStep()
 }
 
+data class Bubble(val id: Int, val offset: Offset)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BathroomScreen(
-    navController: NavController,
-    viewModel: PetViewModel // 🚀 Injeção do ViewModel
-) {
+fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
     var step by remember { mutableStateOf<WashingStep>(WashingStep.Idle) }
+    val scope = rememberCoroutineScope()
 
-    // Estado do sabão
+    // Estados do Sabão e Esfregar
     var soapOffset by remember { mutableStateOf(Offset.Zero) }
-    var soapVisible by remember { mutableStateOf(true) }
     var soapBounds by remember { mutableStateOf(Rect.Zero) }
+    var soapVisible by remember { mutableStateOf(true) }
+    val bubbles = remember { mutableStateListOf<Bubble>() }
+    var scrubbingProgress by remember { mutableFloatStateOf(0f) }
+    val targetScrubbing = 5000f // Valor total de movimento necessário
 
-    // Estado do pet
-    var isSoapy by remember { mutableStateOf(false) }
+    // Estados do Pet
     var petBounds by remember { mutableStateOf(Rect.Zero) }
 
-    // Lógica do Acelerómetro (Shake)
+    val pikachuImage = when (step) {
+        WashingStep.Idle -> R.drawable.ic_dirty_pikachu
+        WashingStep.WaterOn, WashingStep.ReadyToSoap, WashingStep.Soaped, WashingStep.ReadyToDry -> R.drawable.pikachu_wet
+        WashingStep.Rinsing -> R.drawable.pikachu_wet
+        WashingStep.Clean -> R.drawable.pikachu_happy
+    }
+
+    // Sensor Shake (Secar)
     val context = LocalContext.current
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
-
     val shakeEventListener = remember {
         object : SensorEventListener {
             private var lastUpdate: Long = 0
-            private var last_x = 0.0f
-            private var last_y = 0.0f
-            private var last_z = 0.0f
-            private val SHAKE_THRESHOLD = 800
-
+            private var lx = 0f; private var ly = 0f; private var lz = 0f
             override fun onSensorChanged(event: SensorEvent) {
-                if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
-                    val curTime = System.currentTimeMillis()
-                    if (curTime - lastUpdate > 100) {
-                        val diffTime = curTime - lastUpdate
-                        lastUpdate = curTime
-                        val x = event.values[0]
-                        val y = event.values[1]
-                        val z = event.values[2]
-                        val speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000
-
-                        if (speed > SHAKE_THRESHOLD) {
-                            if (step == WashingStep.Rinsing) {
-                                step = WashingStep.Clean
-                                // 🚀 AÇÃO FINALIZADA: Atualiza XP e Higiene
-                                viewModel.clean()
-                            }
-                        }
-                        last_x = x; last_y = y; last_z = z
+                val t = System.currentTimeMillis()
+                if (t - lastUpdate > 100) {
+                    val s = abs(event.values[0] + event.values[1] + event.values[2] - lx - ly - lz) / (t - lastUpdate) * 10000
+                    if (s > 800 && step == WashingStep.ReadyToDry) {
+                        scope.launch { if (step != WashingStep.Clean) { step = WashingStep.Clean; viewModel.clean() } }
                     }
+                    lastUpdate = t; lx = event.values[0]; ly = event.values[1]; lz = event.values[2]
                 }
             }
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            override fun onAccuracyChanged(s: Sensor?, a: Int) {}
         }
     }
 
     DisposableEffect(accelerometer) {
-        if (accelerometer != null) {
-            sensorManager.registerListener(shakeEventListener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
-        }
+        sensorManager.registerListener(shakeEventListener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
         onDispose { sensorManager.unregisterListener(shakeEventListener) }
     }
 
-    // Deteção de colisão (Sabão no Pet)
-    if (soapBounds.overlaps(petBounds) && step == WashingStep.ReadyToSoap) {
-        step = WashingStep.Soaped
-        isSoapy = true
-        soapVisible = false
-    }
-
     val instructionText = when (step) {
-        WashingStep.Idle -> "Click the tap to wash your PokePet!!"
-        WashingStep.WaterOn -> "Click again to turn the water off."
-        WashingStep.ReadyToSoap -> "Drag the soap to wash your PokePet!"
-        WashingStep.Soaped -> "Turn on the tap to clean the soap off!"
-        WashingStep.Rinsing -> "Shake your phone to dry your Pet!"
-        WashingStep.Clean -> "All clean! Good Job!"
+        WashingStep.Idle -> "Liga a torneira!"
+        WashingStep.WaterOn -> "Desliga a água para ensaboar."
+        WashingStep.ReadyToSoap -> "Esfregar o sabão no Pikachu!"
+        WashingStep.Soaped -> "Liga a água para tirar o sabão!"
+        WashingStep.Rinsing -> "Desliga a água antes de secar!"
+        WashingStep.ReadyToDry -> "Abana o telemóvel para secar!"
+        WashingStep.Clean -> "Limpinho!"
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Bathroom") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Banho") }) }) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = instructionText,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = if(step == WashingStep.Clean) Color(0xFF4CAF50) else Color.Unspecified
-            )
+            Text(instructionText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
 
-            if (step == WashingStep.Clean) {
-                Button(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text("Go back")
-                }
+            // Barra de progresso de "Esfregar"
+            if (step == WashingStep.ReadyToSoap && scrubbingProgress > 0) {
+                LinearProgressIndicator(
+                    progress = scrubbingProgress / targetScrubbing,
+                    modifier = Modifier.padding(top = 8.dp).width(200.dp).clip(RoundedCornerShape(10.dp)),
+                    color = Color(0xFF03A9F4)
+                )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            if (step == WashingStep.Clean) {
+                Button(onClick = { navController.popBackStack() }) { Text("Voltar") }
+            }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                val showerImage = if (step is WashingStep.WaterOn || step is WashingStep.Rinsing)
-                    R.drawable.chuveirocagua else R.drawable.chuveirosagua
-
+                // Chuveiro e Torneira
+                val isWaterRunning = step == WashingStep.WaterOn || step == WashingStep.Rinsing
                 Image(
-                    painter = painterResource(id = showerImage),
-                    contentDescription = "Shower",
+                    painter = painterResource(if (isWaterRunning) R.drawable.chuveirocagua else R.drawable.chuveirosagua),
+                    contentDescription = null,
                     modifier = Modifier.size(120.dp).align(Alignment.TopCenter).offset(x = (-50).dp)
                 )
 
                 Image(
-                    painter = painterResource(id = R.drawable.tap),
-                    contentDescription = "Tap",
-                    modifier = Modifier
-                        .size(100.dp)
-                        .align(Alignment.CenterEnd)
-                        .offset(x = (-40).dp, y = 40.dp)
+                    painter = painterResource(R.drawable.tap),
+                    contentDescription = null,
+                    modifier = Modifier.size(100.dp).align(Alignment.CenterEnd).offset(x = (-40).dp, y = 40.dp)
                         .pointerInput(Unit) {
                             detectTapGestures {
                                 step = when (step) {
                                     WashingStep.Idle -> WashingStep.WaterOn
                                     WashingStep.WaterOn -> WashingStep.ReadyToSoap
-                                    WashingStep.Soaped -> { isSoapy = false; WashingStep.Rinsing }
+                                    WashingStep.Soaped -> { bubbles.clear(); WashingStep.Rinsing }
+                                    WashingStep.Rinsing -> WashingStep.ReadyToDry
                                     else -> step
                                 }
                             }
                         }
                 )
 
-                AsyncImage(
-                    model = R.drawable.ic_dirty_pikachu,
-                    contentDescription = "Pet",
-                    modifier = Modifier
-                        .size(200.dp)
-                        .align(Alignment.Center)
-                        .offset(x = (-50).dp)
+                // Pikachu
+                Image(
+                    painter = painterResource(pikachuImage),
+                    contentDescription = null,
+                    modifier = Modifier.size(200.dp).align(Alignment.Center).offset(x = (-50).dp)
                         .onGloballyPositioned { petBounds = it.boundsInParent() }
                 )
 
-                if (isSoapy) {
+                // Bolhas (Clean Icons)
+                bubbles.forEach { bubble ->
                     Image(
-                        painter = painterResource(id = R.drawable.clean_icon),
-                        contentDescription = "Bubbles",
-                        modifier = Modifier.size(200.dp).align(Alignment.Center).offset(x = (-50).dp)
+                        painter = painterResource(R.drawable.clean_icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(60.dp).align(Alignment.Center)
+                            .offset(x = bubble.offset.x.dp - 50.dp, y = bubble.offset.y.dp)
                     )
                 }
 
-                if (soapVisible) {
+                // Sabão com Detecção de Movimento (Esfregar)
+                if (soapVisible && step == WashingStep.ReadyToSoap) {
                     Image(
-                        painter = painterResource(id = R.drawable.clean_page_icon),
+                        painter = painterResource(R.drawable.clean_page_icon),
                         contentDescription = "Soap",
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
+                        modifier = Modifier.align(Alignment.BottomCenter)
                             .offset { IntOffset(soapOffset.x.roundToInt(), soapOffset.y.roundToInt()) }
                             .size(90.dp)
                             .onGloballyPositioned { soapBounds = it.boundsInParent() }
                             .offset(y = (-80).dp)
-                            .pointerInput(step) {
-                                if (step == WashingStep.ReadyToSoap) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        soapOffset += dragAmount
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    soapOffset += dragAmount
+
+                                    // 🚀 Lógica de Esfregar:
+                                    // Se o sabão estiver sobre o pet E o utilizador o estiver a mover
+                                    if (soapBounds.overlaps(petBounds)) {
+                                        val movement = abs(dragAmount.x) + abs(dragAmount.y)
+                                        scrubbingProgress += movement
+
+                                        // Cria bolhas proporcionalmente ao movimento
+                                        if (Random.nextInt(10) < 2) {
+                                            bubbles.add(Bubble(Random.nextInt(), Offset(Random.nextInt(-70, 70).toFloat(), Random.nextInt(-70, 70).toFloat())))
+                                        }
+
+                                        if (scrubbingProgress >= targetScrubbing) {
+                                            step = WashingStep.Soaped
+                                            soapVisible = false
+                                        }
                                     }
                                 }
                             }

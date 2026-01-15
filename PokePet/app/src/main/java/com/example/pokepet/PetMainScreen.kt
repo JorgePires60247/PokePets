@@ -97,7 +97,7 @@ fun PetMainScreen(
                 onLockedClick = {
                     scope.launch {
                         snackbarHostState.showSnackbar(
-                            message = "Bloqueado! Precisas de Nível 2. Cuida do $petName para ganhar XP!",
+                            message = "Not yet! Take care of $petName to reach level 2 and unlock!",
                             duration = SnackbarDuration.Short
                         )
                     }
@@ -130,7 +130,7 @@ fun VitalStatesSection(viewModel: PetViewModel) {
         // Barras conectadas ao ViewModel
         VitalStat(iconRes = R.drawable.hp_icon, color = Color.Red, label = "Health", level = viewModel.health)
         Spacer(modifier = Modifier.height(8.dp))
-        VitalStat(iconRes = R.drawable.clean_icon, color = Color.Blue, label = "Hygiene", level = viewModel.hygiene)
+        VitalStat(iconRes = R.drawable.ic_clean, color = Color.Blue, label = "Hygiene", level = viewModel.hygiene)
         Spacer(modifier = Modifier.height(8.dp))
         VitalStat(iconRes = R.drawable.hunger_icon, color = Color.Magenta, label = "Food", level = viewModel.food)
     }
