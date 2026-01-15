@@ -187,7 +187,7 @@ fun BathroomScreen(
                 )
 
                 AsyncImage(
-                    model = R.drawable.happy,
+                    model = R.drawable.ic_dirty_pikachu,
                     contentDescription = "Pet",
                     modifier = Modifier
                         .size(200.dp)
