@@ -81,7 +81,8 @@ class MainActivity : ComponentActivity() {
                         composable("tools_screen") { ToolsScreen(navController = navController) }
 
                         // Tela do PokeCenter
-                        composable("pokecenter_screen") { PokeCenterScreen(navController = navController) }
+                        composable("energy_screen") { EnergyScreen(navController = navController, viewModel = petViewModel) }
+                        composable("map_screen") { MapScreen(navController)}
                     }
                 }
             }

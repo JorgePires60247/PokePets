@@ -1,6 +1,12 @@
 package com.example.pokepet
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateColor
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +24,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
@@ -138,6 +145,21 @@ fun VitalStatesSection(viewModel: PetViewModel) {
 
 @Composable
 fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Float) {
+    // Configuração da animação de "piscar"
+    val infiniteTransition = rememberInfiniteTransition(label = "blink")
+    val animatedColor by infiniteTransition.animateColor(
+        initialValue = color,
+        targetValue = if (level < 0.2f) Color.Red else color,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "color"
+    )
+
+    // A cor final depende se o nível é crítico ou não
+    val finalColor = if (level < 0.2f) animatedColor else color
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -148,14 +170,27 @@ fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Flo
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        LinearProgressIndicator(
-            progress = { level },
-            modifier = Modifier
-                .weight(1f)
-                .height(8.dp),
-            color = color,
-            trackColor = Color.LightGray
-        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            LinearProgressIndicator(
+                progress = { level },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape), // Bordas arredondadas para as barras
+                color = finalColor,
+                trackColor = Color.LightGray
+            )
+            // Aviso em texto se estiver crítico
+            if (level < 0.2f) {
+                Text(
+                    text = "LOW $label!",
+                    color = Color.Red,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
