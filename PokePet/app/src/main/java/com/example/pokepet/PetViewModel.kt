@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,9 +39,19 @@ class PetViewModel : ViewModel() {
     var food by mutableFloatStateOf(0.7f)
     var coins by mutableIntStateOf(3000)
 
+
+    // --- TUTORIAL
+    var hasSeenPokeCenterTutorial by mutableStateOf(false)
+    // No PetViewModel.kt
+    var hasShownPokeCenterUnlockWarning by mutableStateOf(false)
+
+    // Exemplo: O PokeCenter desbloqueia no nível 2
+
+
     // --- PROGRESSÃO ---
     var currentXP by mutableFloatStateOf(0f)
     var currentLevel by mutableIntStateOf(1)
+
 
     // --- INVENTÁRIO ---
     val inventory = mutableStateListOf<InventoryItem>()

@@ -50,6 +50,7 @@ fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonRe
     var showTutorial by remember { mutableStateOf(false) }
     var gameStarted by remember { mutableStateOf(false) }
 
+
     // Animação da Pokébola
     val ballYOffset by animateIntOffsetAsState(
         targetValue = if (isLaunching) IntOffset(0, -1100) else IntOffset(0, 0),
@@ -186,33 +187,34 @@ fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonRe
     if (catchResult != null) {
         AlertDialog(
             onDismissRequest = { },
-            title = { Text(if (catchResult == "Success") "Gotcha!" else "Oh no!") },
+            title = {
+                Text(if (catchResult == "Success") "Gotcha! 🎉" else "Oh no! 💨")
+            },
             text = {
                 Text(
                     if (catchResult == "Success")
-                        "The Pokemon was caught! Returning to PokeCenter..."
+                        "The Pokémon was caught! Returning to PokeCenter to rest."
                     else
-                        "The Pokemon ran away!"
+                        "The Pokémon fled! Let's head back to the PokeCenter."
                 )
             },
             confirmButton = {
                 Button(onClick = {
                     if (catchResult == "Success") {
+                        // Adiciona recompensas apenas no sucesso
                         viewModel.coins += 50
-
-                        try {
-                            navController.navigate("energy_screen") {
-                                popUpTo("catch") { inclusive = true } // Remove o ecrã de captura
-                            }
-                        } catch (e: Exception) {
-                            // Caso o nome esteja errado, volta apenas para trás para não crashar
-                            navController.popBackStack()
-                        }
-                    } else {
-                        navController.popBackStack()
                     }
+
+                    // NAVEGAÇÃO UNIFICADA: Ambos os casos vão para o PokeCenter
+                    navController.navigate("energy_screen") {
+                        // Limpa a pilha para evitar que o "Back" volte para o ecrã de captura
+                        popUpTo("energy_screen") { inclusive = true }
+                    }
+
                     catchResult = null
-                }) { Text("OK") }
+                }) {
+                    Text("OK")
+                }
             }
         )
     }
@@ -264,12 +266,12 @@ fun MiniGameShrinkingRing(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
         )
     }
 }
-
 @Composable
 fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
     var taps by remember { mutableStateOf(0) }
     var time by remember { mutableStateOf(40) }
     val target = 20
+    var gameFinished by remember { mutableStateOf(false) } // Estado para evitar múltiplos disparos
 
     // Animação de vibração da bola
     val shakeOffset by animateDpAsState(
@@ -277,9 +279,24 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
         animationSpec = spring(stiffness = Spring.StiffnessMedium), label = ""
     )
 
+    // 1. MONITORIZA OS TOQUES: Termina assim que atingir o alvo
+    LaunchedEffect(taps) {
+        if (taps >= target && !gameFinished) {
+            gameFinished = true
+            onResult(true) // Sucesso imediato!
+        }
+    }
+
+    // 2. CRONÓMETRO: Termina se o tempo esgotar
     LaunchedEffect(Unit) {
-        while (time > 0) { delay(100); time-- }
-        onResult(taps >= target)
+        while (time > 0 && !gameFinished) {
+            delay(100)
+            time--
+        }
+        if (!gameFinished) {
+            gameFinished = true
+            onResult(taps >= target)
+        }
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -287,9 +304,9 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
 
         Spacer(Modifier.height(15.dp))
 
-        // Barra de Estabilidade (Amarelo Amigável)
+        // Barra de Estabilidade
         LinearProgressIndicator(
-            progress = taps.toFloat() / target,
+            progress = (taps.toFloat() / target).coerceAtMost(1f), // Garante que a barra não ultrapassa 100%
             modifier = Modifier.width(250.dp).height(10.dp).clip(RoundedCornerShape(5.dp)),
             color = Color(0xFFFFD54F), // Honey Yellow
             trackColor = Color.White.copy(0.2f)
@@ -297,25 +314,27 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
 
         Spacer(Modifier.height(60.dp))
 
-        // A Pokébola escolhida pelo user a abanar
+        // A Pokébola
         Image(
             painter = painterResource(id = selectedBallIcon),
             contentDescription = null,
             modifier = Modifier
                 .size(150.dp)
                 .offset(x = shakeOffset)
-                .clickable { taps++ }
+                // 3. BLOQUEIO: Só permite clicar se o jogo não tiver terminado
+                .clickable(enabled = !gameFinished) {
+                    taps++
+                }
         )
 
         Text(
-            "PROGRESS: $taps / $target",
+            "PROGRESS: ${taps.coerceAtMost(target)} / $target",
             color = Color(0xFFFFD54F),
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 20.dp)
         )
     }
 }
-
 @Composable
 fun MiniGameReaction(onResult: (Boolean) -> Unit) {
     var isAppearing by remember { mutableStateOf(false) }

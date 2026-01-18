@@ -67,6 +67,10 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
     val identifiersList = viewModel.inventory.filter { it.type == ItemType.IDENTIFIER }
     val identifierCount = identifiersList.size
 
+    val hasPokeballs = viewModel.inventory.any {
+        it.type == ItemType.POKEBALL || it.type == ItemType.ULTRABALL || it.type == ItemType.MASTERBALL
+    }
+
     // --- DIÁLOGO 1: IDENTIFICAR ---
     if (showIdentifierDialog && activeEvent != null && pendingItem != null) {
         AlertDialog(
@@ -91,16 +95,33 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
     if (showCaptureDialog && activeEvent != null) {
         AlertDialog(
             onDismissRequest = { showCaptureDialog = false },
-            title = { Text("Catch Pokémon?") },
-            text = { Text("Do you want to try and catch this Pokémon?") },
+            title = {
+                Text(if (hasPokeballs) "Catch Pokémon?" else "No Pokéballs!")
+            },
+            text = {
+                Text(
+                    if (hasPokeballs) "Do you want to try and catch this Pokémon?"
+                    else "You don't have any Pokéballs in your inventory. Go to the PokeCenter to buy more!"
+                )
+            },
             confirmButton = {
-                Button(onClick = {
-                    showCaptureDialog = false
-                    navController.navigate("catch/${activeEvent?.pokemonIcon}")
-                }) { Text("Catch!") }
+                if (hasPokeballs) {
+                    Button(onClick = {
+                        showCaptureDialog = false
+                        navController.navigate("catch/${activeEvent?.pokemonIcon}")
+                    }) { Text("Catch!") }
+                } else {
+                    // Se não tem bolas, o botão redireciona para o PokeCenter ou apenas fecha
+                    Button(onClick = {
+                        showCaptureDialog = false
+                        navController.navigate("energy_screen") // Opcional: levar à loja
+                    }) { Text("Go to Shop") }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showCaptureDialog = false }) { Text("Maybe later") }
+                TextButton(onClick = { showCaptureDialog = false }) {
+                    Text(if (hasPokeballs) "Maybe later" else "Close")
+                }
             }
         )
     }
