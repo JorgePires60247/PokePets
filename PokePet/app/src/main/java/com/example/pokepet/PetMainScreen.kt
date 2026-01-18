@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 fun PetMainScreen(
     petName: String,
     navController: NavController,
-    viewModel: PetViewModel // ViewModel partilhado que controla os dados
+    viewModel: PetViewModel
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

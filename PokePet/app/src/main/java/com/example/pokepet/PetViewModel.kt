@@ -19,7 +19,7 @@ import kotlin.math.min
 enum class ItemType {
     FULL_HEAL, POTION, FULL_HEART, FULL_CLEAN, FULL_HUNGER, // Potions
     POKEBALL, ULTRABALL, MASTERBALL,                       // Pokeballs
-    IDENTIFIER, FISHING_ROD,                               // Tools
+    IDENTIFIER,                              // Tools
     MAP                                                    // Special
 }
 
@@ -36,7 +36,7 @@ class PetViewModel : ViewModel() {
     var health by mutableFloatStateOf(0.5f)
     var hygiene by mutableFloatStateOf(0.7f)
     var food by mutableFloatStateOf(0.7f)
-    var coins by mutableIntStateOf(100)
+    var coins by mutableIntStateOf(3000)
 
     // --- PROGRESSÃO ---
     var currentXP by mutableFloatStateOf(0f)
@@ -58,14 +58,13 @@ class PetViewModel : ViewModel() {
     private fun startDegradationLoop() {
         viewModelScope.launch {
             while (isActive) {
-                delay(5000) // Ciclo a cada 5 segundos
+                delay(5000)
+                // Usar coerção para evitar valores impossíveis
+                food = (food - 0.02f).coerceAtLeast(0f)
+                hygiene = (hygiene - 0.01f).coerceAtLeast(0f)
 
-                food = max(food - 0.02f, 0f)
-                hygiene = max(hygiene - 0.01f, 0f)
-
-                // Penalização de saúde se os cuidados básicos forem ignorados
                 if (food <= 0f || hygiene <= 0f) {
-                    health = max(health - 0.05f, 0f)
+                    health = (health - 0.05f).coerceAtLeast(0f)
                 }
             }
         }
@@ -116,7 +115,9 @@ class PetViewModel : ViewModel() {
             ItemType.FULL_HEART -> health = 1f
             ItemType.FULL_CLEAN -> { hygiene = 1f; updateHealthLogic() }
             ItemType.FULL_HUNGER -> { food = 1f; updateHealthLogic() }
-            else -> { /* Outros itens como Pokebolas e Fishing Rod */ }
+            else -> {
+
+            }
         }
 
         inventory.remove(item)

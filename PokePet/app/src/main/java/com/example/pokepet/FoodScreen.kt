@@ -81,7 +81,6 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
         }
     }
 
-    // 2. GESTÃO DE FLUXO E REAÇÕES
     LaunchedEffect(allBerriesDropped, isMixed, isSeasoned, isCleaned) {
         when {
             !allBerriesDropped -> {
@@ -142,9 +141,9 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
 
                 // Barras de Progresso
                 if (isMixed && !isSeasoned) {
-                    CookingProgressBar(progress = seasoningProgress, color = Color(0xFF4CAF50), hasTarget = true, label = "TEMPERAR")
+                    CookingProgressBar(progress = seasoningProgress, color = Color(0xFF4CAF50), hasTarget = true, label = "SPICE IT UP")
                 } else if (isSeasoned && !isCleaned) {
-                    CookingProgressBar(progress = cleaningProgress, color = Color(0xFF00BCD4), label = "LIMPAR BORDAS")
+                    CookingProgressBar(progress = cleaningProgress, color = Color(0xFF00BCD4), label = "CLEAN EDGES")
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))

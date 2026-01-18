@@ -98,16 +98,16 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
     }
 
     val instructionText = when (step) {
-        WashingStep.Idle -> "Liga a torneira!"
-        WashingStep.WaterOn -> "Desliga a água para ensaboar."
-        WashingStep.ReadyToSoap -> "Esfregar o sabão no Pikachu!"
-        WashingStep.Soaped -> "Liga a água para tirar o sabão!"
-        WashingStep.Rinsing -> "Desliga a água antes de secar!"
-        WashingStep.ReadyToDry -> "Abana o telemóvel para secar!"
-        WashingStep.Clean -> "Limpinho!"
+        WashingStep.Idle -> "Turn on the tap!"
+        WashingStep.WaterOn -> "Turn the water off."
+        WashingStep.ReadyToSoap -> "Pick up the soap and rub it on your PokePet!"
+        WashingStep.Soaped -> "Turn the water on to clear off the soap!"
+        WashingStep.Rinsing -> "Don't forget to turn your water off!"
+        WashingStep.ReadyToDry -> "Shake your phone to dry!"
+        WashingStep.Clean -> "All clean! Great Job"
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Banho") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Bath") }) }) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -124,7 +124,7 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
             }
 
             if (step == WashingStep.Clean) {
-                Button(onClick = { navController.popBackStack() }) { Text("Voltar") }
+                Button(onClick = { navController.popBackStack() }) { Text("Go back") }
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
@@ -186,7 +186,6 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                                     change.consume()
                                     soapOffset += dragAmount
 
-                                    // 🚀 Lógica de Esfregar:
                                     // Se o sabão estiver sobre o pet E o utilizador o estiver a mover
                                     if (soapBounds.overlaps(petBounds)) {
                                         val movement = abs(dragAmount.x) + abs(dragAmount.y)

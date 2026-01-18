@@ -80,7 +80,6 @@ fun EnergyScreen(
                             label = firstItem.name,
                             count = items.size,
                             onClick = {
-                                // 🚀 LÓGICA ESPECIAL PARA O MAPA
                                 if (type == ItemType.MAP) {
                                     navController.navigate("map_screen")
                                 } else {
@@ -105,6 +104,8 @@ fun EnergyScreen(
                 limit = 1, // 🚀 Limite único
                 onBuy = { viewModel.buyItem(ItemType.MAP, 150, "Map", R.drawable.ic_map) }
             )
+            ShopItemCard(name = "Identifier", desc = "Identify wild Pokemon", price = 300, icon = R.drawable.ic_identifier, currentCount = viewModel.inventory.count { it.type == ItemType.IDENTIFIER }, onBuy = { viewModel.buyItem(ItemType.IDENTIFIER, 30, "Identifier", R.drawable.ic_identifier) })
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -123,17 +124,10 @@ fun EnergyScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- 5. ITEMS ---
-            SectionTitle("Tools & Items")
-            ShopItemCard(name = "Identifier", desc = "Identify wild Pokemon", price = 30, icon = R.drawable.ic_identifier, currentCount = viewModel.inventory.count { it.type == ItemType.IDENTIFIER }, onBuy = { viewModel.buyItem(ItemType.IDENTIFIER, 30, "Identifier", R.drawable.ic_identifier) })
-            ShopItemCard(name = "Fishing Rod", desc = "Fish in water areas", price = 60, icon = R.drawable.ic_fishing_rod, currentCount = viewModel.inventory.count { it.type == ItemType.FISHING_ROD }, onBuy = { viewModel.buyItem(ItemType.FISHING_ROD, 60, "Fishing Rod", R.drawable.ic_fishing_rod) })
-
-            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
-// (Componentes auxiliares SectionTitle, EmptyCard, ShopItemCard e InventorySlot permanecem iguais aos definidos anteriormente)
 
 @Composable
 fun SectionTitle(title: String) {
