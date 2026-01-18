@@ -1,7 +1,9 @@
 package com.example.pokepet
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,9 +12,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -21,14 +26,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EnergyScreen(
-    navController: NavController,
-    viewModel: PetViewModel
-) {
+fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
     val groupedInventory = viewModel.inventory.groupBy { it.type }
+    val scope = rememberCoroutineScope()
+
+    // --- ESTADOS DE ANIMAÇÃO ---
+    var showSparkleAnim by remember { mutableStateOf(false) }
+
+    // Efeito para desligar as animações automaticamente
+    LaunchedEffect(showSparkleAnim) { if (showSparkleAnim) { delay(1200); showSparkleAnim = false } }
 
     Scaffold(
         topBar = {
@@ -52,20 +62,28 @@ fun EnergyScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Cabeçalho e XP
             Text(text = "Welcome to the PokeCenter!", fontSize = 16.sp)
             Text(text = "Nível ${viewModel.currentLevel}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE91E63))
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            AsyncImage(model = R.drawable.happy, contentDescription = "Pet", modifier = Modifier.size(120.dp))
+            // --- 🚀 UI DA ANIMAÇÃO SOBRE O PET ---
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(150.dp)) {
+                AsyncImage(
+                    model = R.drawable.happy,
+                    contentDescription = "Pet",
+                    modifier = Modifier.size(120.dp)
+                )
+
+                if (showSparkleAnim) AnimatedSparkleEffect()
+            }
 
             Text(text = "Coins: ${viewModel.coins}", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50), fontSize = 18.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- 1. INVENTÁRIO ---
-            SectionTitle("Inventory (Tap to use)")
+            // --- INVENTÁRIO (SÓ POÇÕES E MAPA) ---
+            SectionTitle("Inventory (Tap to use potions)")
             if (viewModel.inventory.isEmpty()) {
                 EmptyCard("Your inventory is empty.")
             } else {
@@ -80,10 +98,15 @@ fun EnergyScreen(
                             label = firstItem.name,
                             count = items.size,
                             onClick = {
-                                if (type == ItemType.MAP) {
-                                    navController.navigate("map_screen")
-                                } else {
-                                    viewModel.useItem(items.last())
+                                when (type) {
+                                    ItemType.MAP -> navController.navigate("map_screen")
+                                    ItemType.POTION, ItemType.FULL_HEAL, ItemType.FULL_HEART,
+                                    ItemType.FULL_CLEAN, ItemType.FULL_HUNGER -> {
+                                        viewModel.useItem(items.last())
+                                        // Disparar animação correta
+                                        if (type == ItemType.FULL_HEART) showSparkleAnim = true
+                                    }
+                                    else -> {} // Pokeballs e Identifiers ignorados aqui
                                 }
                             }
                         )
@@ -93,40 +116,61 @@ fun EnergyScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- 2. SECÇÃO ESPECIAL: MAPA (Limite 1) ---
+            // --- SECÇÃO DE LOJA ---
             SectionTitle("Special Exploration")
-            ShopItemCard(
-                name = "Adventure Map",
-                desc = "Unlock new areas to explore!",
-                price = 150,
-                icon = R.drawable.ic_map,
-                currentCount = viewModel.inventory.count { it.type == ItemType.MAP },
-                limit = 1, // 🚀 Limite único
-                onBuy = { viewModel.buyItem(ItemType.MAP, 150, "Map", R.drawable.ic_map) }
-            )
-            ShopItemCard(name = "Identifier", desc = "Identify wild Pokemon", price = 300, icon = R.drawable.ic_identifier, currentCount = viewModel.inventory.count { it.type == ItemType.IDENTIFIER }, onBuy = { viewModel.buyItem(ItemType.IDENTIFIER, 30, "Identifier", R.drawable.ic_identifier) })
+            ShopItemCard("Adventure Map", "Unlock areas!", 150, R.drawable.ic_map, viewModel.inventory.count { it.type == ItemType.MAP }, 1) {
+                viewModel.buyItem(ItemType.MAP, 150, "Map", R.drawable.ic_map)
+            }
+            ShopItemCard("Identifier", "Identify Pokemon", 300, R.drawable.ic_identifier, viewModel.inventory.count { it.type == ItemType.IDENTIFIER }) {
+                viewModel.buyItem(ItemType.IDENTIFIER, 300, "Identifier", R.drawable.ic_identifier)
+            }
 
+            SectionTitle("Potions & Care")
+            ShopItemCard("Standard Potion", "Restore 25% HP", 10, R.drawable.ic_potion, viewModel.inventory.count { it.type == ItemType.POTION }) {
+                viewModel.buyItem(ItemType.POTION, 10, "Potion", R.drawable.ic_potion)
+            }
+            ShopItemCard("Full Heal", "Full HP", 50, R.drawable.ic_fullheal, viewModel.inventory.count { it.type == ItemType.FULL_HEAL }) {
+                viewModel.buyItem(ItemType.FULL_HEAL, 50, "Full Heal", R.drawable.ic_fullheal)
+            }
+            ShopItemCard("Full Heart", "Full Happiness", 40, R.drawable.ic_fullheart, viewModel.inventory.count { it.type == ItemType.FULL_HEART }) {
+                viewModel.buyItem(ItemType.FULL_HEART, 40, "Full Heart", R.drawable.ic_fullheart)
+            }
+            ShopItemCard("Full Clean", "Full Cleanliness", 30, R.drawable.ic_fullclean, viewModel.inventory.count { it.type == ItemType.FULL_CLEAN }) {
+                viewModel.buyItem(ItemType.FULL_CLEAN, 30, "Full Clean", R.drawable.ic_fullclean)
+            }
+            ShopItemCard("Full Food", "Full Hunger Bar", 35, R.drawable.ic_fullhunger, viewModel.inventory.count { it.type == ItemType.FULL_HUNGER }) {
+                viewModel.buyItem(ItemType.FULL_HUNGER, 35, "Full Food", R.drawable.ic_fullhunger)
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- 3. POTIONS ---
-            SectionTitle("Potions")
-            ShopItemCard(name = "Full Heal", desc = "Restore all stats", price = 50, icon = R.drawable.ic_fullheal, currentCount = viewModel.inventory.count { it.type == ItemType.FULL_HEAL }, onBuy = { viewModel.buyItem(ItemType.FULL_HEAL, 50, "Full Heal", R.drawable.ic_fullheal) })
-            ShopItemCard(name = "Standard Potion", desc = "Restore 25% health", price = 10, icon = R.drawable.ic_potion, currentCount = viewModel.inventory.count { it.type == ItemType.POTION }, onBuy = { viewModel.buyItem(ItemType.POTION, 10, "Potion", R.drawable.ic_potion) })
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- 4. POKEBALLS ---
             SectionTitle("Pokeballs")
-            ShopItemCard(name = "Pokeball", desc = "25% Catch Rate", price = 20, icon = R.drawable.ic_pokeball, currentCount = viewModel.inventory.count { it.type == ItemType.POKEBALL }, onBuy = { viewModel.buyItem(ItemType.POKEBALL, 20, "Pokeball", R.drawable.ic_pokeball) })
-            ShopItemCard(name = "Ultra Ball", desc = "50% Catch Rate", price = 50, icon = R.drawable.ic_ultraball, currentCount = viewModel.inventory.count { it.type == ItemType.ULTRABALL }, onBuy = { viewModel.buyItem(ItemType.ULTRABALL, 50, "Ultra Ball", R.drawable.ic_ultraball) })
-            ShopItemCard(name = "Master Ball", desc = "100% Catch Rate", price = 200, icon = R.drawable.ic_masterball, currentCount = viewModel.inventory.count { it.type == ItemType.MASTERBALL }, onBuy = { viewModel.buyItem(ItemType.MASTERBALL, 200, "Master Ball", R.drawable.ic_masterball) })
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+            ShopItemCard("Pokeball", "25% Catch", 20, R.drawable.ic_pokeball, viewModel.inventory.count { it.type == ItemType.POKEBALL }) {
+                viewModel.buyItem(ItemType.POKEBALL, 20, "Pokeball", R.drawable.ic_pokeball)
+            }
+            ShopItemCard("Ultra Ball", "50% Catch", 50, R.drawable.ic_ultraball, viewModel.inventory.count { it.type == ItemType.ULTRABALL }) {
+                viewModel.buyItem(ItemType.ULTRABALL, 50, "Ultra Ball", R.drawable.ic_ultraball)
+            }
+            ShopItemCard("Master Ball", "100% Catch", 200, R.drawable.ic_masterball, viewModel.inventory.count { it.type == ItemType.MASTERBALL }) {
+                viewModel.buyItem(ItemType.MASTERBALL, 200, "Master Ball", R.drawable.ic_masterball)
+            }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+// --- 🚀 FUNÇÕES DAS ANIMAÇÕES ---
+
+
+@Composable
+fun AnimatedSparkleEffect() {
+    val infiniteTransition = rememberInfiniteTransition(label = "")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f, targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(400), repeatMode = RepeatMode.Reverse), label = ""
+    )
+
+    Text("✨", fontSize = 45.sp, modifier = Modifier.scale(scale))
+}
+
 
 
 @Composable

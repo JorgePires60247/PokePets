@@ -74,12 +74,6 @@ class MainActivity : ComponentActivity() {
                             FoodScreen(navController = navController, viewModel = petViewModel)
                         }
 
-                        // Telas de funcionalidades (Movidas para dentro do NavHost)
-                        composable("potions_screen") { PotionsScreen(navController = navController) }
-                        composable("explore_screen") { ExploreScreen(navController = navController) }
-                        composable("pokeballs_screen") { PokeballsScreen(navController = navController) }
-                        composable("tools_screen") { ToolsScreen(navController = navController) }
-
                         // Tela do PokeCenter
                         composable("energy_screen") { EnergyScreen(navController = navController, viewModel = petViewModel) }
                         composable("map_screen") { MapScreen(navController = navController, viewModel = petViewModel)}
