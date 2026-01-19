@@ -38,26 +38,31 @@ fun PetMainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+
     // --- ESTADOS DE TUTORIAL E CELEBRAÇÃO ---
     var showHatchTutorial by remember { mutableStateOf(viewModel.currentLevel == 1 && viewModel.currentXP == 0f) }
     var showLevelUpEffect by remember { mutableStateOf(false) }
 
-    // Detetar subida de nível para disparar confetes
+    // 1. Detetar subida de nível para disparar confetes
     LaunchedEffect(viewModel.currentLevel) {
         if (viewModel.currentLevel > 1) {
             showLevelUpEffect = true
-            delay(3000) // Duração da celebração
+            delay(3000)
             showLevelUpEffect = false
         }
-    }
 
-    // Detetar desbloqueio do PokeCenter
-    LaunchedEffect(viewModel.isPokeCenterUnlocked) {
-        if (viewModel.isPokeCenterUnlocked && !viewModel.hasShownPokeCenterUnlockWarning) {
-            snackbarHostState.showSnackbar(
-                message = "New Location: PokeCenter is now open!",
-                duration = SnackbarDuration.Long
-            )
+        // 2. LOGICA DE DESBLOQUEIO: Dispara o Snackbar apenas no Nível 2 e uma única vez
+        if (viewModel.currentLevel >= 2 && !viewModel.hasShownPokeCenterUnlockWarning) {
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = "New Location: PokeCenter is now open!",
+                    actionLabel = "Go Now",
+                    duration = SnackbarDuration.Long
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    navController.navigate("energy_screen")
+                }
+            }
             viewModel.hasShownPokeCenterUnlockWarning = true
         }
     }
@@ -101,8 +106,7 @@ fun PetMainScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
+                Spacer(modifier = Modifier.height(32.dp))
 
                 // Imagem do Pet
                 Box(contentAlignment = Alignment.Center) {
@@ -112,7 +116,6 @@ fun PetMainScreen(
                         modifier = Modifier.size(200.dp)
                     )
 
-                    // Efeito visual de Brilho se subir de nível
                     if (showLevelUpEffect) {
                         LevelUpAnimation()
                     }
@@ -120,7 +123,7 @@ fun PetMainScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Barra de XP Interativa
+                // Barra de XP
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "XP: ${(viewModel.currentXP * 100).toInt()}%", fontSize = 12.sp)
                     LinearProgressIndicator(
@@ -144,7 +147,6 @@ fun PetMainScreen(
                 )
             }
 
-            // Camada de Confetes
             if (showLevelUpEffect) {
                 ConfettiOverlay()
             }
@@ -152,8 +154,7 @@ fun PetMainScreen(
     }
 }
 
-// --- COMPONENTES DE ANIMAÇÃO ---
-
+// --- COMPONENTES DE ANIMAÇÃO MANTIDOS ---
 @Composable
 fun LevelUpAnimation() {
     val infiniteTransition = rememberInfiniteTransition(label = "")
@@ -161,7 +162,6 @@ fun LevelUpAnimation() {
         initialValue = 1f, targetValue = 1.4f,
         animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse), label = ""
     )
-
     Text(
         text = "LEVEL UP!",
         color = Color(0xFFFFD700),
@@ -173,7 +173,6 @@ fun LevelUpAnimation() {
 
 @Composable
 fun ConfettiOverlay() {
-    // Simulação simples de confetes usando emojis
     Box(modifier = Modifier.fillMaxSize()) {
         repeat(15) { i ->
             val startX = remember { (0..1000).random().toFloat() }
@@ -233,7 +232,6 @@ fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Flo
 @Composable
 fun ActionButtonsRow(navController: NavController, viewModel: PetViewModel, onLockedClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        // --- BOTAO POKECENTER ---
         Box {
             ActionButton(
                 iconRes = if (viewModel.isPokeCenterUnlocked) R.drawable.ic_pokecenter else R.drawable.pokecenter_off_icon,
@@ -243,24 +241,14 @@ fun ActionButtonsRow(navController: NavController, viewModel: PetViewModel, onLo
                     else onLockedClick()
                 }
             )
+            // Mantemos o ponto vermelho para indicar que algo novo foi desbloqueado
             if (viewModel.isPokeCenterUnlocked && !viewModel.hasSeenPokeCenterTutorial) {
                 Box(Modifier.size(12.dp).align(Alignment.TopEnd).background(Color.Red, CircleShape))
             }
         }
-
-        // --- BOTAO FOOD
-        ActionButton(
-            iconRes = R.drawable.hunger_icon,
-            label = "Food",
-            onClick = { navController.navigate("food_screen") }
-        )
-
-        // --- BOTAO HYGIENE
-        ActionButton(
-            iconRes = R.drawable.clean_page_icon,
-            label = "Hygiene",
-            onClick = { navController.navigate("bathroom_screen") }
-        )
+        ActionButton(R.drawable.pokedex_icon, "PokeDex", onClick = { navController.navigate("pokedex_screen") })
+        ActionButton(R.drawable.hunger_icon, "Food", onClick = { navController.navigate("food_screen") })
+        ActionButton(R.drawable.clean_page_icon, "Hygiene", onClick = { navController.navigate("bathroom_screen") })
     }
 }
 

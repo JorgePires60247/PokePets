@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -34,84 +35,133 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonResId: Int) {
+fun CatchScreen(
+    navController: NavController,
+    viewModel: PetViewModel,
+    pokemonId: Int,
+    xpReward: Float
+) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val inventoryBalls = viewModel.inventory.filter {
         it.type == ItemType.POKEBALL || it.type == ItemType.ULTRABALL || it.type == ItemType.MASTERBALL
     }
 
-    // --- ESTADOS ---
+
+    val extractedName = remember(pokemonId) {
+        try {
+            val fullName = context.resources.getResourceEntryName(pokemonId) // Retorna "p_pikachu"
+            fullName.removePrefix("p_") // Retorna "pikachu"
+                .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } // "Pikachu"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
+
+    // --- ESTADOS DE ANIMAÇÃO E JOGO ---
     var isLaunching by remember { mutableStateOf(false) }
+    var isWobbling by remember { mutableStateOf(false) }
+    var wobbleCount by remember { mutableIntStateOf(0) }
+    var pokemonVisible by remember { mutableStateOf(true) }
+
     var selectedBall by remember { mutableStateOf<InventoryItem?>(null) }
     var catchResult by remember { mutableStateOf<String?>(null) }
     var activeMiniGame by remember { mutableStateOf<Int?>(null) }
     var showTutorial by remember { mutableStateOf(false) }
     var gameStarted by remember { mutableStateOf(false) }
 
-
-    // Animação da Pokébola
+    // 1. Animação de Lançamento (Y) e Rotação (Giroscópio visual)
     val ballYOffset by animateIntOffsetAsState(
-        targetValue = if (isLaunching) IntOffset(0, -1100) else IntOffset(0, 0),
+        targetValue = if (isLaunching) IntOffset(0, -800) else IntOffset(0, 0),
         animationSpec = tween(800, easing = LinearOutSlowInEasing),
-        label = "ball"
+        label = "launchY"
     )
 
-    // --- Dentro do CatchScreen.kt ---
-    val context = LocalContext.current
+    val ballRotation by animateFloatAsState(
+        targetValue = if (isLaunching) 1080f else 0f,
+        animationSpec = tween(800, easing = LinearEasing),
+        label = "launchRotate"
+    )
+
+    // 2. Animação de Abanar no chão (Wobble)
+    val wobbleRotation by animateFloatAsState(
+        targetValue = if (isWobbling) (if (wobbleCount % 2 == 0) -15f else 15f) else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "wobbleRotate"
+    )
+
+    // --- FUNÇÃO: SEQUÊNCIA DE CAPTURA DRAMÁTICA ---
+    fun startCatchSequence() {
+        scope.launch {
+            // Fase 1: A bola voa
+            isLaunching = true
+            delay(800)
+
+            // Fase 2: Impacto (O Pokémon entra na bola)
+            pokemonVisible = false
+            isLaunching = false // Para a animação de voo
+            isWobbling = true
+
+            // Fase 3: O suspense (1... 2... 3...)
+            repeat(3) {
+                delay(1000)
+                wobbleCount++
+            }
+
+            // Fase 4: Cálculo da probabilidade
+            delay(500)
+            isWobbling = false
+            val chance = (1..100).random()
+            val caught = when (selectedBall?.type) {
+                ItemType.POKEBALL -> chance < 35
+                ItemType.ULTRABALL -> chance < 65
+                ItemType.MASTERBALL -> true
+                else -> false
+            }
+            catchResult = if (caught) "Success" else "Failed"
+        }
+    }
+
+    // --- FUNÇÃO: FINALIZAÇÃO DO MINIJOGO ---
+    fun onGameFinished(success: Boolean) {
+        gameStarted = false
+        activeMiniGame = null
+        if (success) {
+            startCatchSequence()
+        } else {
+            // Se falhou o minijogo, o Pokémon foge imediatamente
+            catchResult = "Failed"
+        }
+    }
+
+    // --- SENSORES PARA O MINIJOGO GYRO ---
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
-
-// Estado para guardar a inclinação (Eixo X)
     var tiltX by remember { mutableStateOf(0f) }
 
-// Listener para o sensor
     val sensorListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-                    // O valor X indica a inclinação lateral
-                    tiltX = event.values[0]
-                }
+                if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) tiltX = event.values[0]
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
     }
 
-// Registar e remover o sensor conforme o ciclo de vida do ecrã
     DisposableEffect(Unit) {
         sensorManager.registerListener(sensorListener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
-        onDispose {
-            sensorManager.unregisterListener(sensorListener)
-        }
+        onDispose { sensorManager.unregisterListener(sensorListener) }
     }
 
-    // --- LÓGICA DE JOGO ---
-    fun onGameFinished(success: Boolean) {
-        gameStarted = false
-        activeMiniGame = null
-        if (success) {
-            scope.launch {
-                isLaunching = true
-                delay(1000)
-                val chance = Random.nextInt(100)
-                val caught = when (selectedBall?.type) {
-                    ItemType.POKEBALL -> chance < 30
-                    ItemType.ULTRABALL -> chance < 65
-                    ItemType.MASTERBALL -> true
-                    else -> false
-                }
-                catchResult = if (caught) "Success" else "Failed"
-            }
-        } else {
-            catchResult = "Failed"
-        }
-    }
-
+    // --- INTERFACE ---
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-            // Header
+            // Barra superior de inventário
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 20.dp)) {
                 Image(painterResource(R.drawable.ic_backpack), null, Modifier.size(50.dp))
                 Spacer(Modifier.width(12.dp))
@@ -120,10 +170,10 @@ fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonRe
                         inventoryBalls.distinctBy { it.type }.forEach { ball ->
                             val count = inventoryBalls.count { it.type == ball.type }
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
-                                if (!isLaunching && activeMiniGame == null) {
+                                if (!isLaunching && !isWobbling && activeMiniGame == null) {
                                     selectedBall = ball
                                     viewModel.inventory.remove(ball)
-                                    activeMiniGame = Random.nextInt(4)
+                                    activeMiniGame = (0..3).random()
                                     showTutorial = true
                                 }
                             }) {
@@ -135,33 +185,58 @@ fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonRe
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
-            Text("Select a ball to start!", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(Modifier.weight(1f))
 
-            // Pokémon Area
-            Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth().height(400.dp)) {
+            // Campo de batalha
+            Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth().height(450.dp)) {
                 Image(painterResource(R.drawable.ic_grass_platform), null, Modifier.width(280.dp), contentScale = ContentScale.FillWidth)
-                Image(
-                    painter = painterResource(pokemonResId), null,
-                    modifier = Modifier.size(180.dp).padding(bottom = 80.dp).alpha(if (isLaunching && ballYOffset.y < -700) 0f else 1f)
-                )
-                if (isLaunching && selectedBall != null) {
-                    Image(painterResource(selectedBall!!.icon), null, Modifier.size(60.dp).offset { ballYOffset })
+
+                // Pokémon
+                if (pokemonVisible) {
+                    Image(
+                        painter = painterResource(pokemonId), null,
+                        modifier = Modifier.size(250.dp).padding(bottom = 80.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                // Pokébola (com rotação ou wobble)
+                // POKÉBOLA COM EFEITOS (ATUALIZADA)
+                if (selectedBall != null && (!pokemonVisible || isLaunching)) {
+                    Image(
+                        painter = painterResource(selectedBall!!.icon),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(if (isWobbling) 80.dp else 60.dp)
+                            .offset {
+                                if (isLaunching) {
+                                    ballYOffset
+                                } else {
+                                    IntOffset(30, -220)
+                                }
+                            }
+                            .rotate(if (isLaunching) ballRotation else wobbleRotation)
+                    )
                 }
             }
+
+            // Contador visual 1, 2, 3
+            if (isWobbling && wobbleCount > 0) {
+                Text(text = "$wobbleCount...", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.Gray)
+            }
+
             Spacer(Modifier.weight(0.5f))
         }
 
-        // --- OVERLAY DOS JOGOS E TUTORIAL ---
+        // Overlay de Minijogos
         activeMiniGame?.let { gameId ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(0.85f)), contentAlignment = Alignment.Center) {
                 if (showTutorial) {
                     val info = when(gameId) {
-                        0 -> "RING CHALLENGE" to "Click when the circles match!"
-                        1 -> "RAPID TAP" to "Tap 20 times before time runs out!"
-                        2 -> "REFLEX CHALLENGE" to "Tap the barry as fast as you can!"
-                        else -> "BALANCE TEST" to "Keep it as centered as possible!"
+                        0 -> "RING CHALLENGE" to "Tap when the circles align!"
+                        1 -> "RAPID TAP" to "Stabilize the ball with 20 taps!"
+                        2 -> "REFLEX TEST" to "Tap the berry as soon as it appears!"
+                        else -> "BALANCE" to "Tilt your phone to keep the ball centered!"
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(info.first, color = Color.Red, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -169,77 +244,70 @@ fun CatchScreen(navController: NavController, viewModel: PetViewModel, pokemonRe
                         Button(onClick = { showTutorial = false; gameStarted = true }) { Text("START") }
                     }
                 } else if (gameStarted) {
-                    val ballIcon = selectedBall?.icon ?: R.drawable.map_pball
-
+                    val icon = selectedBall?.icon ?: R.drawable.map_pball
                     when(gameId) {
-                        // Passamos o ballIcon para os jogos que precisam dele
-                        0 -> MiniGameShrinkingRing(selectedBallIcon = ballIcon) { onGameFinished(it) }
-                        1 -> MiniGameRapidTap(selectedBallIcon = ballIcon) { onGameFinished(it) }
+                        0 -> MiniGameShrinkingRing(icon) { onGameFinished(it) }
+                        1 -> MiniGameRapidTap(icon) { onGameFinished(it) }
                         2 -> MiniGameReaction { onGameFinished(it) }
-                        3 -> MiniGameGyroBalance(ballIcon, tiltX) { onGameFinished(it) }
+                        3 -> MiniGameGyroBalance(icon, tiltX) { onGameFinished(it) }
                     }
                 }
             }
         }
     }
 
-    // Popups de Resultado
+    // Diálogo de Resultado
     if (catchResult != null) {
         AlertDialog(
             onDismissRequest = { },
-            title = {
-                Text(if (catchResult == "Success") "Gotcha! 🎉" else "Oh no! 💨")
-            },
-            text = {
-                Text(
-                    if (catchResult == "Success")
-                        "The Pokémon was caught! Returning to PokeCenter to rest."
-                    else
-                        "The Pokémon fled! Let's head back to the PokeCenter."
-                )
-            },
+            title = { Text(if (catchResult == "Success") "Gotcha! 🎉" else "Oh no! 💨") },
+            text = { Text(if (catchResult == "Success") "The Pokémon was caught! Returning to the PokeCenter to rest!" else "\" The Pokémon broke free and fled! Let's go back to the PokeCenter...") },
             confirmButton = {
                 Button(onClick = {
                     if (catchResult == "Success") {
-                        // Adiciona recompensas apenas no sucesso
-                        viewModel.coins += 50
-                    }
+                        val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
-                    // NAVEGAÇÃO UNIFICADA: Ambos os casos vão para o PokeCenter
-                    navController.navigate("energy_screen") {
-                        // Limpa a pilha para evitar que o "Back" volte para o ecrã de captura
-                        popUpTo("energy_screen") { inclusive = true }
+                        // Determinar raridade e local (Pode ser melhorado passando via nav)
+                        val rarity = if (xpReward > 0.3f) "Legendary" else if (xpReward > 0.1f) "Rare" else "Common"
+                        viewModel.gainXP(xpReward)
+                        viewModel.coins += 100
+                        viewModel.addToPokedex(
+                            CaughtPokemon(
+                                pokemonId = pokemonId,
+                                name = extractedName,
+                                rarity = rarity,
+                                xpReward = xpReward,
+                                dateCaught = date,
+                            )
+                        )
                     }
-
+                    navController.navigate("energy_screen") { popUpTo("energy_screen") { inclusive = true } }
                     catchResult = null
-                }) {
-                    Text("OK")
-                }
+                }) { Text("OK") }
             }
         )
     }
 }
 
+// --- SUB-COMPONENTES DOS MINIJOGOS ---
+
 
 @Composable
 fun MiniGameShrinkingRing(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
     var scale by remember { mutableStateOf(2f) }
-
     LaunchedEffect(Unit) {
         animate(2f, 0.4f, animationSpec = tween(1500, easing = LinearEasing)) { value, _ ->
             scale = value
         }
         onResult(false)
     }
-
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize().clickable {
-            // Sucesso se clicar quando a bola está sobre o alvo (margem de 0.8 a 1.2)
             onResult(scale in 0.8f..1.2f)
         }
     ) {
-        // Alvo (Círculo de captura)
+// Alvo (Círculo de captura)
         Box(
             Modifier
                 .size(100.dp)
@@ -249,7 +317,6 @@ fun MiniGameShrinkingRing(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
                     shape = CircleShape
                 )
         )
-
         Image(
             painter = painterResource(id = selectedBallIcon),
             contentDescription = null,
@@ -257,7 +324,6 @@ fun MiniGameShrinkingRing(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
                 .size((100 * scale).dp)
                 .alpha(0.8f)
         )
-
         Text(
             "CATCH ZONE",
             color = if (scale in 0.8f..1.2f) Color(0xFF4CAF50) else Color.White,
@@ -273,21 +339,18 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
     val target = 20
     var gameFinished by remember { mutableStateOf(false) } // Estado para evitar múltiplos disparos
 
-    // Animação de vibração da bola
     val shakeOffset by animateDpAsState(
         targetValue = if (taps % 2 == 0) 0.dp else 8.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMedium), label = ""
     )
-
-    // 1. MONITORIZA OS TOQUES: Termina assim que atingir o alvo
     LaunchedEffect(taps) {
         if (taps >= target && !gameFinished) {
             gameFinished = true
-            onResult(true) // Sucesso imediato!
+            onResult(true)
         }
     }
 
-    // 2. CRONÓMETRO: Termina se o tempo esgotar
+// 2. CRONÓMETRO: Termina se o tempo esgotar
     LaunchedEffect(Unit) {
         while (time > 0 && !gameFinished) {
             delay(100)
@@ -298,35 +361,29 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
             onResult(taps >= target)
         }
     }
-
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("STABILIZE THE POKEBALL!", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-
         Spacer(Modifier.height(15.dp))
-
-        // Barra de Estabilidade
+// Barra de Estabilidade
         LinearProgressIndicator(
             progress = (taps.toFloat() / target).coerceAtMost(1f), // Garante que a barra não ultrapassa 100%
             modifier = Modifier.width(250.dp).height(10.dp).clip(RoundedCornerShape(5.dp)),
             color = Color(0xFFFFD54F), // Honey Yellow
             trackColor = Color.White.copy(0.2f)
         )
-
         Spacer(Modifier.height(60.dp))
-
-        // A Pokébola
+// A Pokébola
         Image(
             painter = painterResource(id = selectedBallIcon),
             contentDescription = null,
             modifier = Modifier
                 .size(150.dp)
                 .offset(x = shakeOffset)
-                // 3. BLOQUEIO: Só permite clicar se o jogo não tiver terminado
+// 3. BLOQUEIO: Só permite clicar se o jogo não tiver terminado
                 .clickable(enabled = !gameFinished) {
                     taps++
                 }
         )
-
         Text(
             "PROGRESS: ${taps.coerceAtMost(target)} / $target",
             color = Color(0xFFFFD54F),
@@ -338,14 +395,12 @@ fun MiniGameRapidTap(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
 @Composable
 fun MiniGameReaction(onResult: (Boolean) -> Unit) {
     var isAppearing by remember { mutableStateOf(false) }
-
     LaunchedEffect(Unit) {
         delay(Random.nextLong(1500, 3500))
         isAppearing = true
         delay(650)
         if (isAppearing) onResult(false)
     }
-
     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
         if (isAppearing) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -369,25 +424,22 @@ fun MiniGameReaction(onResult: (Boolean) -> Unit) {
     }
 }
 
-
 @Composable
 fun MiniGameGyroBalance(selectedBallIcon: Int, tiltX: Float, onResult: (Boolean) -> Unit) {
     var ballPosition by remember { mutableStateOf(0f) } // 0f é o centro
     var timeLeft by remember { mutableStateOf(50) } // 5 segundos (50 * 100ms)
     val limit = 150f // Limite lateral da barra em pixels
 
-    // Atualizar posição da bola com base no sensor
+// Atualizar posição da bola com base no sensor
     LaunchedEffect(tiltX) {
-        // Invertemos o tiltX porque o sensor reporta a aceleração oposta à inclinação
+// Invertemos o tiltX porque o sensor reporta a aceleração oposta à inclinação
         ballPosition -= tiltX * 2f
-
-        // Verificar se caiu da barra
+// Verificar se caiu da barra
         if (ballPosition > limit || ballPosition < -limit) {
             onResult(false)
         }
     }
-
-    // Timer de sobrevivência
+// Timer de sobrevivência
     LaunchedEffect(Unit) {
         while (timeLeft > 0) {
             delay(100)
@@ -395,32 +447,26 @@ fun MiniGameGyroBalance(selectedBallIcon: Int, tiltX: Float, onResult: (Boolean)
         }
         onResult(true) // Se aguentou os 5 segundos -> ganhou
     }
-
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("BALANCE THE BALL!", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("Tilt your phone to stay centered", color = Color(0xFFFFD54F), fontSize = 14.sp)
-
         Spacer(Modifier.height(40.dp))
 
         Box(contentAlignment = Alignment.Center, modifier = Modifier.width(300.dp).height(100.dp)) {
-            // A Barra de Equilíbrio
+// A Barra de Equilíbrio
             Box(Modifier.width(300.dp).height(8.dp).background(Color.White.copy(0.3f), RoundedCornerShape(4.dp)))
-
-            // Zona Segura (Centro)
+// Zona Segura (Centro)
             Box(Modifier.width(60.dp).height(12.dp).background(Color(0xFF4CAF50).copy(0.5f), CircleShape))
-
             Image(
                 painter = painterResource(id = selectedBallIcon),
                 contentDescription = null,
                 modifier = Modifier
                     .size(50.dp)
-                    .offset { IntOffset(ballPosition.roundToInt(), -30) } // Sobe 30px para ficar em cima da barra
+                    .offset { IntOffset(ballPosition.roundToInt(), -30) }
             )
         }
-
         Spacer(Modifier.height(20.dp))
-
-        // Indicador de Tempo
+// Indicador de Tempo
         CircularProgressIndicator(
             progress = timeLeft / 50f,
             color = Color(0xFFFFD54F),

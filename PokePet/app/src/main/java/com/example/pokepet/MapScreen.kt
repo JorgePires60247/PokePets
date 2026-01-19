@@ -33,50 +33,162 @@ import androidx.navigation.NavController
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-// Modelo de dados
+// --- NOVOS MODELOS DE DADOS ---
+
+enum class PokemonRarity(val chance: Int) {
+    COMMON(70),    // 70% chance
+
+    UNCOMMON(40),  // 40% chance
+    RARE(20),      // 20% chance
+    LEGENDARY(5)   // 5% chance
+}
+
+data class PokemonSpawnConfig(
+    val pokemonIcon: Int,
+    val rarity: PokemonRarity,
+    val xpReward: Float
+)
+
 data class MapBallEvent(
     val x: Float,
     val y: Float,
-    val pokemonIcon: Int,
+    val pokemonData: PokemonSpawnConfig,
     val isIdentified: MutableState<Boolean> = mutableStateOf(false)
 )
 
-@Composable
-fun MapScreen(navController: NavController, viewModel: PetViewModel) {
-    val pokemonIcons = remember {
-        listOf(
-            R.drawable.p1, R.drawable.p2, R.drawable.p3, R.drawable.p4, R.drawable.p5,
-            R.drawable.p6, R.drawable.p7, R.drawable.p8, R.drawable.p9, R.drawable.p10,
-            R.drawable.p11, R.drawable.p12, R.drawable.p13, R.drawable.p14, R.drawable.p15
+data class MapRegion(
+    val id: String,
+    val backgroundRes: Int,
+    val spawnList: List<PokemonSpawnConfig>
+)
+
+object MapData {
+    val regions = listOf(
+        MapRegion(
+            id = "forest",
+            backgroundRes = R.drawable.ic_map1,
+            spawnList = listOf(
+                PokemonSpawnConfig(R.drawable.p_azurill, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_chinchou, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_psyduck, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_petilil, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_beedrill, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_ribombee, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_cramorant, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_dragonite, PokemonRarity.RARE, 0.40f),
+                PokemonSpawnConfig(R.drawable.p_mew, PokemonRarity.LEGENDARY, 0.60f)
+            )
+        ),
+        MapRegion(
+            id = "village",
+            backgroundRes = R.drawable.ic_map2,
+            spawnList = listOf(
+                PokemonSpawnConfig(R.drawable.p_azurill, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_bidoof, PokemonRarity.COMMON, 0.04f),
+                PokemonSpawnConfig(R.drawable.p_ledian, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_magikarp, PokemonRarity.COMMON, 0.03f),
+                PokemonSpawnConfig(R.drawable.p_chatot, PokemonRarity.RARE, 0.12f),
+                PokemonSpawnConfig(R.drawable.p_jigglypuff, PokemonRarity.RARE, 0.12f),
+                PokemonSpawnConfig(R.drawable.p_petilil, PokemonRarity.RARE, 0.10f),
+                PokemonSpawnConfig(R.drawable.p_cramorant, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_riolu, PokemonRarity.RARE, 0.20f),
+                PokemonSpawnConfig(R.drawable.p_starmie, PokemonRarity.RARE, 0.35f)
+            )
+        ),
+        MapRegion(
+            id = "woods",
+            backgroundRes = R.drawable.ic_map3,
+            spawnList = listOf(
+                PokemonSpawnConfig(R.drawable.p_magikarp, PokemonRarity.COMMON, 0.03f),
+                PokemonSpawnConfig(R.drawable.p_ledian, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_whismur, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_onix, PokemonRarity.RARE, 0.18f),
+                PokemonSpawnConfig(R.drawable.p_absol, PokemonRarity.RARE, 0.25f),
+                PokemonSpawnConfig(R.drawable.p_riolu, PokemonRarity.RARE, 0.20f),
+                PokemonSpawnConfig(R.drawable.p_gardevoir, PokemonRarity.RARE, 0.30f),
+                PokemonSpawnConfig(R.drawable.p_dragonite, PokemonRarity.RARE, 0.45f),
+                PokemonSpawnConfig(R.drawable.p_garchomp, PokemonRarity.RARE, 0.50f)
+            )
+        ),
+        MapRegion(
+            id = "ocean",
+            backgroundRes = R.drawable.ic_map4,
+            spawnList = listOf(
+                PokemonSpawnConfig(R.drawable.p_magikarp, PokemonRarity.COMMON, 0.03f),
+                PokemonSpawnConfig(R.drawable.p_azurill, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_psyduck, PokemonRarity.COMMON, 0.06f),
+                PokemonSpawnConfig(R.drawable.p_bidoof, PokemonRarity.COMMON, 0.04f),
+                PokemonSpawnConfig(R.drawable.p_chatot, PokemonRarity.UNCOMMON, 0.08f),
+                PokemonSpawnConfig(R.drawable.p_chinchou, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_octillery, PokemonRarity.RARE, 0.20f),
+                PokemonSpawnConfig(R.drawable.p_cramorant, PokemonRarity.RARE, 0.15f),
+                PokemonSpawnConfig(R.drawable.p_starmie, PokemonRarity.RARE, 0.35f)
+            )
+        ),
+        MapRegion(
+            id = "cave",
+            backgroundRes = R.drawable.ic_map5,
+            spawnList = listOf(
+                PokemonSpawnConfig(R.drawable.p_whismur, PokemonRarity.COMMON, 0.05f),
+                PokemonSpawnConfig(R.drawable.p_bidoof, PokemonRarity.COMMON, 0.04f),
+                PokemonSpawnConfig(R.drawable.p_riolu, PokemonRarity.RARE, 0.20f),
+                PokemonSpawnConfig(R.drawable.p_jigglypuff, PokemonRarity.RARE, 0.12f),
+                PokemonSpawnConfig(R.drawable.p_onix, PokemonRarity.RARE, 0.18f),
+                PokemonSpawnConfig(R.drawable.p_chandelure, PokemonRarity.RARE, 0.25f),
+                PokemonSpawnConfig(R.drawable.p_absol, PokemonRarity.RARE, 0.25f),
+                PokemonSpawnConfig(R.drawable.p_spiritomb, PokemonRarity.RARE, 0.30f),
+                PokemonSpawnConfig(R.drawable.p_metagross, PokemonRarity.RARE, 0.50f),
+                PokemonSpawnConfig(R.drawable.p_garchomp, PokemonRarity.RARE, 0.55f)
+            )
         )
+    )
+}
+
+// Função para escolher Pokémon baseado na raridade
+fun selectPokemonByRarity(list: List<PokemonSpawnConfig>): PokemonSpawnConfig {
+    val roll = (1..100).random()
+    val targetRarity = when {
+        roll <= PokemonRarity.LEGENDARY.chance -> PokemonRarity.LEGENDARY
+        roll <= (PokemonRarity.LEGENDARY.chance + PokemonRarity.RARE.chance) -> PokemonRarity.RARE
+        else -> PokemonRarity.COMMON
     }
 
-    val mapEvents = remember {
-        generateRandomBallPositions(count = 6, minDistance = 0.2f).map { pos ->
-            MapBallEvent(pos.x, pos.y, pokemonIcons.random())
+    // Tenta encontrar um pokemon dessa raridade, senão escolhe um qualquer da lista
+    return list.filter { it.rarity == targetRarity }.randomOrNull() ?: list.random()
+}
+
+@Composable
+fun MapScreen(navController: NavController, viewModel: PetViewModel, regionId: String = "forest") {
+
+    val currentRegion = remember(regionId) {
+        MapData.regions.find { it.id == regionId } ?: MapData.regions.first()
+    }
+
+    // Gerar eventos com lógica de raridade
+    val mapEvents = remember(regionId) {
+        generateRandomBallPositions(count = 5, minDistance = 0.12f).map { pos ->
+            MapBallEvent(pos.x, pos.y, selectPokemonByRarity(currentRegion.spawnList))
         }
     }
 
-    // Estados de UI e Diálogos
+    // Estados
     var activeEvent by remember { mutableStateOf<MapBallEvent?>(null) }
     var showIdentifierDialog by remember { mutableStateOf(false) }
     var showCaptureDialog by remember { mutableStateOf(false) }
     var pendingItem by remember { mutableStateOf<InventoryItem?>(null) }
-
     val shadowPositions = remember { mutableStateMapOf<MapBallEvent, Offset>() }
-    val identifiersList = viewModel.inventory.filter { it.type == ItemType.IDENTIFIER }
-    val identifierCount = identifiersList.size
 
+    val identifiersList = viewModel.inventory.filter { it.type == ItemType.IDENTIFIER }
     val hasPokeballs = viewModel.inventory.any {
         it.type == ItemType.POKEBALL || it.type == ItemType.ULTRABALL || it.type == ItemType.MASTERBALL
     }
 
-    // --- DIÁLOGO 1: IDENTIFICAR ---
+    // --- DIÁLOGOS ---
     if (showIdentifierDialog && activeEvent != null && pendingItem != null) {
         AlertDialog(
             onDismissRequest = { showIdentifierDialog = false },
             title = { Text("Use Identifier?") },
-            text = { Text("Do you want to reveal this Pokémon's identity?") },
+            text = { Text("Reveal this ${activeEvent?.pokemonData?.rarity} Pokémon?") },
             confirmButton = {
                 Button(onClick = {
                     activeEvent?.isIdentified?.value = true
@@ -85,44 +197,32 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
                     pendingItem = null
                 }) { Text("Reveal") }
             },
-            dismissButton = {
-                TextButton(onClick = { showIdentifierDialog = false }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { showIdentifierDialog = false }) { Text("Cancel") } }
         )
     }
 
-    // --- DIÁLOGO 2: CAPTURAR ---
     if (showCaptureDialog && activeEvent != null) {
         AlertDialog(
             onDismissRequest = { showCaptureDialog = false },
-            title = {
-                Text(if (hasPokeballs) "Catch Pokémon?" else "No Pokéballs!")
-            },
+            title = { Text(if (hasPokeballs) "Catch Pokémon?" else "No Pokeballs!") },
             text = {
-                Text(
-                    if (hasPokeballs) "Do you want to try and catch this Pokémon?"
-                    else "You don't have any Pokéballs in your inventory. Go to the PokeCenter to buy more!"
-                )
+                val rarityName = activeEvent?.pokemonData?.rarity?.name
+                Text(if (hasPokeballs) "Try to catch this $rarityName Pokémon?"
+                else "Buy more Pokeballs at the PokeCenter!")
             },
             confirmButton = {
                 if (hasPokeballs) {
                     Button(onClick = {
                         showCaptureDialog = false
-                        navController.navigate("catch/${activeEvent?.pokemonIcon}")
-                    }) { Text("Catch!") }
+                        navController.navigate("catch/${activeEvent?.pokemonData?.pokemonIcon}/${activeEvent?.pokemonData?.xpReward}")                    }) { Text("Catch!") }
                 } else {
-                    // Se não tem bolas, o botão redireciona para o PokeCenter ou apenas fecha
                     Button(onClick = {
                         showCaptureDialog = false
-                        navController.navigate("energy_screen") // Opcional: levar à loja
+                        navController.navigate("energy_screen")
                     }) { Text("Go to Shop") }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCaptureDialog = false }) {
-                    Text(if (hasPokeballs) "Maybe later" else "Close")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showCaptureDialog = false }) { Text("Close") } }
         )
     }
 
@@ -131,7 +231,7 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
         val maxHeight = maxHeight
 
         Image(
-            painter = painterResource(id = R.drawable.ic_map1),
+            painter = painterResource(id = currentRegion.backgroundRes),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -139,11 +239,9 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
 
         mapEvents.forEach { event ->
             val isThisSelected = activeEvent == event
-
             val revealAnim by animateFloatAsState(
                 targetValue = if (event.isIdentified.value) 1.1f else 1f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                label = "reveal"
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = ""
             )
 
             Box(
@@ -159,75 +257,69 @@ fun MapScreen(navController: NavController, viewModel: PetViewModel) {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                // Pokébola (Invisível quando ativa)
+                // Pokébola
                 Image(
                     painter = painterResource(id = R.drawable.map_pball),
                     contentDescription = null,
-                    modifier = Modifier
-                        .size(35.dp)
-                        .alpha(if (isThisSelected) 0f else 1f)
-                        .clickable { activeEvent = event }
+                    modifier = Modifier.size(35.dp).alpha(if (isThisSelected) 0f else 1f).clickable { activeEvent = event }
                 )
 
-                // Pokémon (Sombra/Revelado)
                 if (isThisSelected) {
                     Image(
-                        painter = painterResource(id = event.pokemonIcon),
+                        painter = painterResource(id = event.pokemonData.pokemonIcon),
                         contentDescription = null,
-                        modifier = Modifier
-                            .size(110.dp)
-                            .scale(revealAnim)
-                            .clickable {
-                                // Se o utilizador clicar no Pokémon já aberto, surge o popup de captura
-                                showCaptureDialog = true
-                            },
+                        modifier = Modifier.size(110.dp).scale(revealAnim).clickable { showCaptureDialog = true },
+                        // Filtro preto se não identificado
                         colorFilter = if (!event.isIdentified.value) ColorFilter.tint(Color.Black) else null
                     )
+
+                    // Pequena Badge de Raridade se identificado
+                    if (event.isIdentified.value) {
+                        Text(
+                            text = event.pokemonData.rarity.name,
+                            color = when(event.pokemonData.rarity) {
+                                PokemonRarity.LEGENDARY -> Color.Yellow
+                                PokemonRarity.RARE -> Color.Cyan
+                                else -> Color.White
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.TopCenter).background(Color.Black.copy(0.5f), RoundedCornerShape(4.dp)).padding(2.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // --- Dock de Identifiers (Canto Inferior) ---
-        if (identifierCount > 0) {
-            Column(
-                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Identifiers", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp,
-                    modifier = Modifier.background(Color.Black.copy(0.6f), RoundedCornerShape(4.dp)).padding(4.dp))
-
+        // UI de Identifiers (mantida do teu original)
+        if (identifiersList.isNotEmpty()) {
+            val identifierCount = identifiersList.size
+            Column(modifier = Modifier.align(Alignment.BottomStart).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Identifiers", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.background(Color.Black.copy(0.6f), RoundedCornerShape(4.dp)).padding(4.dp))
                 Spacer(modifier = Modifier.height(4.dp))
-
                 Box(modifier = Modifier.size(65.dp)) {
-                    DraggableIdentifier(
-                        item = identifiersList.first(),
-                        onDropped = { finalPos ->
-                            activeEvent?.let { event ->
-                                val target = shadowPositions[event] ?: Offset.Zero
-                                val dist = sqrt(((finalPos.x - target.x)*(finalPos.x - target.x) + (finalPos.y - target.y)*(finalPos.y - target.y)).toDouble())
-                                if (!event.isIdentified.value && dist < 180.0) {
-                                    pendingItem = identifiersList.first()
-                                    showIdentifierDialog = true
-                                }
+                    DraggableIdentifier(item = identifiersList.first(), onDropped = { finalPos ->
+                        activeEvent?.let { event ->
+                            val target = shadowPositions[event] ?: Offset.Zero
+                            val dist = sqrt(((finalPos.x - target.x)*(finalPos.x - target.x) + (finalPos.y - target.y)*(finalPos.y - target.y)).toDouble())
+                            if (!event.isIdentified.value && dist < 180.0) {
+                                pendingItem = identifiersList.first()
+                                showIdentifierDialog = true
                             }
                         }
-                    )
-                    // Badge contador
-                    Box(modifier = Modifier.align(Alignment.TopEnd).background(Color.Red, CircleShape)
-                        .border(1.dp, Color.White, CircleShape).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                    })
+                    Box(modifier = Modifier.align(Alignment.TopEnd).background(Color.Red, CircleShape).border(1.dp, Color.White, CircleShape).padding(horizontal = 5.dp, vertical = 1.dp)) {
                         Text("x$identifierCount", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        IconButton(onClick = { navController.popBackStack() },
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).background(Color.Black.copy(0.3f), CircleShape)) {
+        IconButton(onClick = { navController.popBackStack() }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).background(Color.Black.copy(0.3f), CircleShape)) {
             Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
         }
     }
 }
-
 @Composable
 fun DraggableIdentifier(item: InventoryItem, onDropped: (Offset) -> Unit) {
     var offsetX by remember { mutableStateOf(0f) }

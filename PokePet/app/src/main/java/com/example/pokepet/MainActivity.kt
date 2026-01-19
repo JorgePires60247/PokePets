@@ -76,13 +76,26 @@ class MainActivity : ComponentActivity() {
 
                         // Tela do PokeCenter
                         composable("energy_screen") { EnergyScreen(navController = navController, viewModel = petViewModel) }
+                        composable("pokedex_screen") { PokedexScreen(navController = navController, viewModel = petViewModel) }
                         composable("map_screen") { MapScreen(navController = navController, viewModel = petViewModel)}
+                        // No teu NavHost dentro da MainActivity:
+
                         composable(
-                            route = "catch/{pokemonId}",
-                            arguments = listOf(navArgument("pokemonId") { type = NavType.IntType })
+                            route = "catch/{pokemonId}/{xpReward}",
+                            arguments = listOf(
+                                navArgument("pokemonId") { type = NavType.IntType },
+                                navArgument("xpReward") { type = NavType.FloatType }
+                            )
                         ) { backStackEntry ->
-                            val pokemonId = backStackEntry.arguments?.getInt("pokemonId") ?: R.drawable.p1
-                            CatchScreen(navController, viewModel = petViewModel, pokemonId)
+                            val pokemonId = backStackEntry.arguments?.getInt("pokemonId") ?: 0
+                            val xpReward = backStackEntry.arguments?.getFloat("xpReward") ?: 0f
+
+                            CatchScreen(
+                                navController = navController,
+                                viewModel = petViewModel,
+                                pokemonId = pokemonId,
+                                xpReward = xpReward
+                            )
                         }
                     }
                 }
