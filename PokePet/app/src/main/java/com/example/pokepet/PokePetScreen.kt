@@ -15,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,12 +26,16 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 
-// Note the new parameter: onNameConfirmed
+
 @Composable
 fun PokePetScreen(onNameConfirmed: (String) -> Unit = {}) {
     var isHatched by remember { mutableStateOf(false) }
-    var petName by remember { mutableStateOf("") }
+    var petName by remember { mutableStateOf("Pikachu") }
+    var tapCount by remember { mutableIntStateOf(0) }
+    val targetTaps = 10 // Número de toques necessários
+
     val rotation = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -48,48 +54,47 @@ fun PokePetScreen(onNameConfirmed: (String) -> Unit = {}) {
 
         if (!isHatched) {
             Text(
-                text = "Tap the egg to make it hatch!",
+                text = "Tap the egg to hatch it!",
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                color = if (tapCount > 0) Color(0xFFE91E63) else Color.Gray
             )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        AsyncImage(
-            model = if (isHatched) R.drawable.happy else R.drawable.egg,
-            contentDescription = if (isHatched) "Hatched Pet" else "Egg",
-            modifier = Modifier
-                .size(150.dp)
-                .rotate(rotation.value)
-                .clickable {
-                    if (!isHatched) {
+        // --- O OVO INTERATIVO ---
+        Box(contentAlignment = Alignment.Center) {
+            AsyncImage(
+                model = if (isHatched) R.drawable.happy else R.drawable.egg,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(150.dp)
+                    .scale(scale.value)
+                    .rotate(rotation.value)
+                    .clickable(enabled = !isHatched) {
+                        tapCount++
                         scope.launch {
-                            val cycles = 4
-                            repeat(cycles) {
-                                rotation.animateTo(
-                                    15f,
-                                    animationSpec = tween(
-                                        durationMillis = 80
-                                    )
-                                )
-                                rotation.animateTo(
-                                    -15f,
-                                    animationSpec = tween(
-                                        durationMillis = 160
-                                    )
-                                )
+                            // Feedback de escala (pulsação) ao tocar
+                            scale.animateTo(1.1f, tween(50))
+                            scale.animateTo(1f, tween(50))
+
+                            // Abanar o ovo
+                            rotation.animateTo(10f, tween(40))
+                            rotation.animateTo(-10f, tween(40))
+                            rotation.animateTo(0f, tween(40))
+
+                            if (tapCount >= targetTaps) {
+                                // Efeito final de eclosão (escala maior)
+                                scale.animateTo(1.5f, tween(200))
+                                isHatched = true
+                                scale.animateTo(1f, tween(200))
                             }
-                            rotation.animateTo(
-                                0f,
-                                animationSpec = tween(durationMillis = 80)
-                            )
-                            isHatched = true
                         }
                     }
-                }
-        )
+            )
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -106,23 +111,24 @@ fun PokePetScreen(onNameConfirmed: (String) -> Unit = {}) {
                 onValueChange = { petName = it },
                 label = { Text("Pet Name") },
                 singleLine = true,
-                modifier = Modifier.width(200.dp)
+                modifier = Modifier.width(200.dp),
+                placeholder = { Text("Pikachu") }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- NEW: CONFIRM BUTTON ---
             Button(
-                onClick = { onNameConfirmed(petName.ifBlank { "PokePet" }) },
-                // Enable button only if the name field is not empty
-                enabled = petName.isNotBlank()
+                onClick = {
+                    val finalName = if (petName.isBlank()) "Pikachu" else petName
+                    onNameConfirmed(finalName)
+                },
+                enabled = true
             ) {
                 Text("Confirm")
             }
         }
     }
 }
-
 // Preview to test the hatching screen in isolation
 @Preview(showBackground = true)
 @Composable
