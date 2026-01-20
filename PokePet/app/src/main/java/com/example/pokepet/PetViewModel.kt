@@ -28,7 +28,7 @@ class PetViewModel : ViewModel() {
     var health by mutableFloatStateOf(0.7f)
     var hygiene by mutableFloatStateOf(0.7f)
     var food by mutableFloatStateOf(0.7f)
-    var coins by mutableIntStateOf(1000)
+    var coins by mutableIntStateOf(200)
 
     // Progressão
     var currentXP by mutableFloatStateOf(0f)
@@ -81,8 +81,16 @@ class PetViewModel : ViewModel() {
         }
     }
 
-    fun feed() { food = 1f; updateHealth(); gainXP(0.5f) }
-    fun clean() { hygiene = 1f; updateHealth(); gainXP(0.5f) }
+    fun feed() {
+        food = 1f
+        coins += 10
+        updateHealth()
+        gainXP(0.25f) }
+    fun clean() {
+        hygiene = 1f
+        coins += 10
+        updateHealth()
+        gainXP(0.25f) }
 
     private fun updateHealth() {
         if (food > 0.8f && hygiene > 0.8f) health = min(health + 0.1f, 1f)
@@ -92,6 +100,8 @@ class PetViewModel : ViewModel() {
         if (coins >= price) {
             coins -= price
             inventory.add(InventoryItem(type = type, name = name, icon = icon))
+            currentXP += 0.1f
+
         }
     }
 

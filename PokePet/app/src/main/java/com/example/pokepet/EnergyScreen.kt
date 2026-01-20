@@ -168,24 +168,24 @@ fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
             ShopItemCard("Adventure Map", "Unlock areas!", 150, R.drawable.ic_map, viewModel.inventory.count { it.type == ItemType.MAP }, 1) {
                 pendingPurchase = Triple(ItemType.MAP, "Adventure Map", 150)
             }
-            ShopItemCard("Identifier", "Identify Pokemon", 300, R.drawable.ic_identifier, viewModel.inventory.count { it.type == ItemType.IDENTIFIER }) {
+            ShopItemCard("Identifier", "Identify Pokemon", 500, R.drawable.ic_identifier, viewModel.inventory.count { it.type == ItemType.IDENTIFIER }) {
                 pendingPurchase = Triple(ItemType.IDENTIFIER, "Identifier", 300)
             }
 
             SectionTitle("Potions & Care")
-            ShopItemCard("Standard Potion", "Restore 25% HP", 10, R.drawable.ic_potion, viewModel.inventory.count { it.type == ItemType.POTION }) {
+            ShopItemCard("Standard Potion", "Restore 25% HP", 50, R.drawable.ic_potion, viewModel.inventory.count { it.type == ItemType.POTION }) {
                 pendingPurchase = Triple(ItemType.POTION, "Standard Potion", 10)
             }
-            ShopItemCard("Full Heal", "Full HP", 50, R.drawable.ic_fullheal, viewModel.inventory.count { it.type == ItemType.FULL_HEAL }) {
+            ShopItemCard("Full Heal", "Full HP", 250, R.drawable.ic_fullheal, viewModel.inventory.count { it.type == ItemType.FULL_HEAL }) {
                 pendingPurchase = Triple(ItemType.FULL_HEAL, "Full Heal", 50)
             }
-            ShopItemCard("Full Heart", "Full Happiness", 40, R.drawable.ic_fullheart, viewModel.inventory.count { it.type == ItemType.FULL_HEART }) {
+            ShopItemCard("Full Heart", "Full Happiness", 150, R.drawable.ic_fullheart, viewModel.inventory.count { it.type == ItemType.FULL_HEART }) {
                 pendingPurchase = Triple(ItemType.FULL_HEART, "Full Heart", 40)
             }
-            ShopItemCard("Full Clean", "Full Cleanliness", 30, R.drawable.ic_fullclean, viewModel.inventory.count { it.type == ItemType.FULL_CLEAN }) {
+            ShopItemCard("Full Clean", "Full Cleanliness", 150, R.drawable.ic_fullclean, viewModel.inventory.count { it.type == ItemType.FULL_CLEAN }) {
                 pendingPurchase = Triple(ItemType.FULL_CLEAN, "Full Clean", 30)
             }
-            ShopItemCard("Full Food", "Full Hunger Bar", 35, R.drawable.ic_fullhunger, viewModel.inventory.count { it.type == ItemType.FULL_HUNGER }) {
+            ShopItemCard("Full Food", "Full Hunger Bar", 150, R.drawable.ic_fullhunger, viewModel.inventory.count { it.type == ItemType.FULL_HUNGER }) {
                 pendingPurchase = Triple(ItemType.FULL_HUNGER, "Full Food", 35)
             }
 
@@ -193,10 +193,10 @@ fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
             ShopItemCard("Pokeball", "25% Catch", 20, R.drawable.ic_pokeball, viewModel.inventory.count { it.type == ItemType.POKEBALL }) {
                 pendingPurchase = Triple(ItemType.POKEBALL, "Pokeball", 20)
             }
-            ShopItemCard("Ultra Ball", "50% Catch", 50, R.drawable.ic_ultraball, viewModel.inventory.count { it.type == ItemType.ULTRABALL }) {
+            ShopItemCard("Ultra Ball", "50% Catch", 200, R.drawable.ic_ultraball, viewModel.inventory.count { it.type == ItemType.ULTRABALL }) {
                 pendingPurchase = Triple(ItemType.ULTRABALL, "Ultra Ball", 50)
             }
-            ShopItemCard("Master Ball", "100% Catch", 200, R.drawable.ic_masterball, viewModel.inventory.count { it.type == ItemType.MASTERBALL }) {
+            ShopItemCard("Master Ball", "100% Catch", 700, R.drawable.ic_masterball, viewModel.inventory.count { it.type == ItemType.MASTERBALL }) {
                 pendingPurchase = Triple(ItemType.MASTERBALL, "Master Ball", 200)
             }
             Spacer(modifier = Modifier.height(32.dp))
