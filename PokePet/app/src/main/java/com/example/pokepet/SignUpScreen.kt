@@ -11,23 +11,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignUpScreen(navController: NavController) {
+fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
     var email by remember { mutableStateOf(TextFieldValue("")) }
     var username by remember { mutableStateOf(TextFieldValue("")) }
     var password by remember { mutableStateOf(TextFieldValue("")) }
     var confirmPassword by remember { mutableStateOf(TextFieldValue("")) }
 
-    val isEmailValid = "@gmail.com" in email.text || "@yahoo.com" in email.text || "@hotmail.com" in email.text || "@outlook.com" in email.text
+    // Validações de interface
+    val isEmailValid = "@" in email.text && "." in email.text
     val isPasswordValid = password.text.length >= 8 && password.text.any { !it.isLetterOrDigit() }
     val passwordsMatch = password.text == confirmPassword.text
+
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val auth = FirebaseAuth.getInstance()
+    val dbRef = FirebaseDatabase.getInstance().reference
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -46,9 +53,10 @@ fun SignUpScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Campo de Email
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
+                onValueChange = { email = it; errorMsg = null },
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
@@ -61,9 +69,10 @@ fun SignUpScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Campo de Username
             OutlinedTextField(
                 value = username,
-                onValueChange = { username = it },
+                onValueChange = { username = it; errorMsg = null },
                 label = { Text("Username") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
@@ -72,9 +81,10 @@ fun SignUpScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Campo de Password
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = { password = it; errorMsg = null },
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
@@ -88,9 +98,10 @@ fun SignUpScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Confirmação de Password
             OutlinedTextField(
                 value = confirmPassword,
-                onValueChange = { confirmPassword = it },
+                onValueChange = { confirmPassword = it; errorMsg = null },
                 label = { Text("Confirm Password") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
@@ -102,23 +113,65 @@ fun SignUpScreen(navController: NavController) {
                 Text("Passwords do not match.", color = Color.Red, fontSize = 12.sp)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Mensagem de Erro
+            if (errorMsg != null) {
+                Text(errorMsg!!, color = Color.Red, fontSize = 13.sp, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             Button(
-                onClick = { navController.navigate("hatching_screen") },
-                enabled = isEmailValid && isPasswordValid && passwordsMatch && username.text.isNotEmpty(),
+                onClick = {
+                    isLoading = true
+                    errorMsg = null
+
+                    auth.createUserWithEmailAndPassword(email.text.trim(), password.text)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val uid = auth.currentUser?.uid
+                                val profile = mapOf(
+                                    "username" to username.text.trim(),
+                                    "email" to email.text.trim()
+                                )
+
+                                // Grava o perfil no Realtime Database
+                                if (uid != null) {
+                                    dbRef.child("users").child(uid).child("profile").setValue(profile)
+                                        .addOnCompleteListener { writeTask ->
+                                            isLoading = false
+                                            if (writeTask.isSuccessful) {
+                                                petViewModel.clearLocalPokemon()
+                                                // Navega para o Login após o registo bem-sucedido
+                                                navController.navigate("login_screen") {
+                                                    popUpTo("signup_screen") { inclusive = true }
+                                                }
+                                            } else {
+                                                errorMsg = writeTask.exception?.message ?: "Failed to save profile."
+                                            }
+                                        }
+                                }
+                            } else {
+                                isLoading = false
+                                errorMsg = task.exception?.message ?: "Sign up failed."
+                            }
+                        }
+                },
+                enabled = isEmailValid && isPasswordValid && passwordsMatch && username.text.isNotEmpty() && !isLoading,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Black)
             ) {
-                Text("Sign Up", modifier = Modifier.padding(vertical = 8.dp), fontSize = 16.sp)
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text(
+                        text = "Sign Up",
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        fontSize = 16.sp
+                    )
+                }
             }
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun SignUpScreenPreview() {
-    SignUpScreen(navController = rememberNavController())
 }

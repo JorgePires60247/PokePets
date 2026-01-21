@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            // PokePetTheme configurado sem temas dinâmicos para consistência visual
             PokePetTheme(darkTheme = false, dynamicColor = false) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -26,31 +27,38 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
 
-                    // Criação do ViewModel compartilhado
+                    // Inicialização do ViewModel compartilhado para persistência entre ecrãs
                     val petViewModel: PetViewModel = viewModel()
 
                     NavHost(
                         navController = navController,
-                        startDestination = "login_screen"
+                        startDestination = "login_screen" // Define o Login como ponto de partida
                     ) {
-                        // Login & Signup
+                        // --- AUTENTICAÇÃO ---
                         composable("login_screen") {
-                            LoginScreen(navController = navController)
+                            LoginScreen(navController = navController, petViewModel = petViewModel)
                         }
                         composable("signup_screen") {
-                            SignUpScreen(navController = navController)
+                            SignUpScreen(navController = navController, petViewModel = petViewModel)
                         }
 
-                        // Fluxo de Hatching
+                        // --- FLUXO INICIAL (HATCHING) ---
                         composable("hatching_screen") {
+                            // O ecrã de Hatching agora chama o ViewModel para criar o pokemon aleatório
                             PokePetScreen(
                                 onNameConfirmed = { petName ->
-                                    navController.navigate("main_screen/$petName")
+                                    petViewModel.createPokemonFromHatch(petName) { success, _ ->
+                                        if (success) {
+                                            navController.navigate("main_screen/$petName") {
+                                                popUpTo("hatching_screen") { inclusive = true }
+                                            }
+                                        }
+                                    }
                                 }
                             )
                         }
 
-                        // Tela Principal (PetMainScreen)
+                        // --- ECRÃ PRINCIPAL ---
                         composable(
                             route = "main_screen/{petName}",
                             arguments = listOf(navArgument("petName") { type = NavType.StringType })
@@ -63,9 +71,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-
-
-                        // Tela de Banheiro (BathroomScreen)
+                        // --- ATIVIDADES E CUIDADOS ---
                         composable("bathroom_screen") {
                             BathroomScreen(navController = navController, viewModel = petViewModel)
                         }
@@ -74,12 +80,20 @@ class MainActivity : ComponentActivity() {
                             FoodScreen(navController = navController, viewModel = petViewModel)
                         }
 
-                        // Tela do PokeCenter
-                        composable("energy_screen") { EnergyScreen(navController = navController, viewModel = petViewModel) }
-                        composable("pokedex_screen") { PokedexScreen(navController = navController, viewModel = petViewModel) }
-                        composable("map_screen") { MapScreen(navController = navController, viewModel = petViewModel)}
-                        // No teu NavHost dentro da MainActivity:
+                        // --- EXPLORAÇÃO E LOJA (POKECENTER) ---
+                        composable("energy_screen") {
+                            EnergyScreen(navController = navController, viewModel = petViewModel)
+                        }
 
+                        composable("pokedex_screen") {
+                            PokedexScreen(navController = navController, viewModel = petViewModel)
+                        }
+
+                        composable("map_screen") {
+                            MapScreen(navController = navController, viewModel = petViewModel)
+                        }
+
+                        // --- MINIJOGO DE CAPTURA ---
                         composable(
                             route = "catch/{pokemonId}/{xpReward}",
                             arguments = listOf(

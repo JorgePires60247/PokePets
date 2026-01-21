@@ -38,15 +38,17 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
+// --- DEFINIÇÃO DAS BAGAS ---
 sealed class BerryType(val id: Int, @DrawableRes val resId: Int, val label: String) {
     object Chesto : BerryType(1, R.drawable.chesto_berry, "Chesto")
     object Sitrus : BerryType(2, R.drawable.cheri_berry, "Sitrus")
     object Oran : BerryType(3, R.drawable.oran_berry, "Oran")
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
-    var currentInstruction by remember { mutableStateOf("Arrasta as bagas para a panela!") }
+    var currentInstruction by remember { mutableStateOf("Drag the berries to the pot!") }
     val droppedBerries = remember { mutableStateSetOf<Int>() }
     var isMixed by remember { mutableStateOf(false) }
     var isSeasoned by remember { mutableStateOf(false) }
@@ -58,14 +60,16 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
     var sparkleOffset by remember { mutableStateOf<Offset?>(null) }
 
     val foodImageRes = remember { mutableIntStateOf(R.drawable.cooking_pot) }
-    // Estado para a imagem do Pikachu
-    val pikachuImageRes = remember { mutableIntStateOf(R.drawable.pikachu_happy) }
+
+    // --- POKEMON DINÂMICO NA COZINHA ---
+    // Carrega a imagem feliz da espécie ativa guardada no ViewModel
+    val pokemonImageRes = PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId, "HAPPY")
 
     var potBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val berries = listOf(BerryType.Chesto, BerryType.Sitrus, BerryType.Oran)
     val allBerriesDropped by remember { derivedStateOf { droppedBerries.size == berries.size } }
 
-    // 1. Lógica da Barra de Tempero
+    // Lógica da Barra de Tempero
     LaunchedEffect(isMixed, isSeasoned) {
         if (isMixed && !isSeasoned) {
             while (true) {
@@ -81,42 +85,38 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
         }
     }
 
+    // Atualização de instruções e imagens conforme as etapas
     LaunchedEffect(allBerriesDropped, isMixed, isSeasoned, isCleaned) {
         when {
             !allBerriesDropped -> {
                 foodImageRes.intValue = R.drawable.cooking_pot
-                pikachuImageRes.intValue = R.drawable.pikachu_happy
                 currentInstruction = "Drag the berries down to the pot!"
             }
             allBerriesDropped && !isMixed -> {
                 currentInstruction = "Shake the phone to mix everything!"
             }
             isMixed && !isSeasoned -> {
-                // ETAPA: TEMPERO (Prato aparece limpo)
                 foodImageRes.intValue = R.drawable.ic_curry
-                pikachuImageRes.intValue = R.drawable.pikachu_happy
                 currentInstruction = "Touch at the right time to spice things up!"
             }
             isSeasoned && !isCleaned -> {
-                // ETAPA: LIMPEZA
                 foodImageRes.intValue = R.drawable.ic_curry_dirty
-                currentInstruction = "What a mess! Clean the edges of the plate with your finger!"
+                currentInstruction = "What a mess! Clean the edges of the plate!"
             }
             isCleaned -> {
                 foodImageRes.intValue = R.drawable.hot_curry
-                pikachuImageRes.intValue = R.drawable.pikachu_happy
-                currentInstruction = "All done! Click on your PokePet to feed it!"
+                // Usa o nome dinâmico do Pokémon para a instrução final
+                currentInstruction = "All done! Click on your ${viewModel.activePokemonName} to feed it!"
             }
         }
     }
 
+    // Ativa o sensor de abalo para misturar os ingredientes
     if (allBerriesDropped && !isMixed) {
         ShakeDetector(onShakeDetected = { isMixed = true })
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Kitchen") }) }
-    ) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Kitchen") }) }) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -124,7 +124,6 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Área das Bagas
                 if (!isMixed) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         berries.forEach { berry ->
@@ -139,7 +138,6 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                 Text(currentInstruction, fontSize = 16.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Barras de Progresso
                 if (isMixed && !isSeasoned) {
                     CookingProgressBar(progress = seasoningProgress, color = Color(0xFF4CAF50), hasTarget = true, label = "SPICE IT UP")
                 } else if (isSeasoned && !isCleaned) {
@@ -148,7 +146,6 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // ÁREA CENTRAL DO PRATO/PANELA
                 Box(
                     modifier = Modifier.size(300.dp).onGloballyPositioned { potBounds = it.boundsInRoot() },
                     contentAlignment = Alignment.Center
@@ -156,7 +153,6 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                     AnimatedContent(targetState = foodImageRes.intValue, label = "FoodAnim") { targetRes ->
                         Box(contentAlignment = Alignment.Center) {
                             if (targetRes == R.drawable.ic_curry_dirty) {
-                                // Lógica de sobreposição para limpeza
                                 Image(painterResource(R.drawable.ic_curry), null, Modifier.fillMaxSize())
                                 Image(
                                     painter = painterResource(R.drawable.ic_curry_dirty),
@@ -181,12 +177,10 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                         }
                     }
 
-                    // Efeito Sparkle (Brilho no dedo)
                     sparkleOffset?.let {
                         Box(Modifier.offset { IntOffset(it.x.roundToInt() - 20, it.y.roundToInt() - 20) }.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.5f)))
                     }
 
-                    // Botão invisível para o Mini-jogo do Tempero
                     if (isMixed && !isSeasoned) {
                         Box(Modifier.fillMaxSize().clickable {
                             if (seasoningProgress in 0.4f..0.6f) isSeasoned = true
@@ -195,24 +189,26 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                 }
             }
 
-            // PIKACHU ANIMADO NO FUNDO
+            // POKEMON DINÂMICO NO FUNDO
             Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) {
-                AnimatedContent(targetState = pikachuImageRes.intValue, label = "PikachuAnim") { targetPika ->
-                    Image(
-                        painter = painterResource(targetPika),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(150.dp)
-                            .clickable(enabled = isCleaned) {
-                                viewModel.feed()
-                                navController.popBackStack()
-                            }
-                    )
-                }
+                Image(
+                    painter = painterResource(pokemonImageRes),
+                    contentDescription = "Active Pokemon",
+                    modifier = Modifier
+                        .size(150.dp)
+                        .clickable(enabled = isCleaned) {
+                            // Chama a função de alimentar e guarda o estado no Firebase
+                            viewModel.feed()
+                            navController.popBackStack()
+                        }
+                )
             }
         }
     }
 }
+
+// --- COMPONENTES AUXILIARES ---
+
 @Composable
 fun CookingProgressBar(progress: Float, color: Color, label: String, hasTarget: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {

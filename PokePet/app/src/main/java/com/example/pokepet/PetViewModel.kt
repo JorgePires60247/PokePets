@@ -1,107 +1,196 @@
 package com.example.pokepet
 
+import android.os.Build
 import androidx.annotation.DrawableRes
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.min
 
-// Modelos de Dados
+// --- CATALOGO E MODELOS DE DADOS ---
+
+object PokemonCatalog {
+    const val PIKACHU = "PIKACHU"
+    const val CHARMANDER = "CHARMANDER"
+    const val BULBASAUR = "BULBASAUR"
+
+    /** Retorna o recurso de imagem com base na espécie e no estado (HAPPY, DIRTY, WET) */
+    fun getPokemonImage(speciesId: String, state: String = "HAPPY"): Int {
+        return when (speciesId) {
+            CHARMANDER -> when (state) {
+                "DIRTY" -> R.drawable.charmender
+                "WET" -> R.drawable.charmender
+                else -> R.drawable.charmender
+            }
+            BULBASAUR -> when (state) {
+                "DIRTY" -> R.drawable.bulbasaur
+                "WET" -> R.drawable.bulbasaur
+                else -> R.drawable.bulbasaur
+            }
+            else -> when (state) { // Default: PIKACHU
+                "DIRTY" -> R.drawable.ic_dirty_pikachu
+                "WET" -> R.drawable.pikachu_wet
+                else -> R.drawable.pikachu_happy
+            }
+        }
+    }
+}
+
 enum class ItemType { FULL_HEAL, POTION, FULL_HEART, FULL_CLEAN, FULL_HUNGER, POKEBALL, ULTRABALL, MASTERBALL, IDENTIFIER, MAP }
 
-data class InventoryItem(val id: Long = System.currentTimeMillis() + (0..9999).random(), val type: ItemType, val name: String, @DrawableRes val icon: Int)
+data class InventoryItem(
+    val id: Long = System.currentTimeMillis() + (0..9999).random(),
+    val type: ItemType = ItemType.POTION,
+    val name: String = "",
+    @DrawableRes val icon: Int = 0
+)
 
-// Modelo para os detalhes da Pokédex
 data class CaughtPokemon(
-    val pokemonId: Int,
-    val name: String,
-    val rarity: String,
-    val xpReward: Float,
-    val dateCaught: String,
-    )
+    val pokemonId: Int = 0,
+    val name: String = "",
+    val rarity: String = "",
+    val xpReward: Float = 0f,
+    val dateCaught: String = ""
+)
 
+data class PokemonState(
+    val health: Float = 0.7f,
+    val hygiene: Float = 0.7f,
+    val food: Float = 0.7f,
+    val currentXP: Float = 0f,
+    val currentLevel: Int = 1,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
+
+data class OwnedPokemon(
+    val id: String = "",
+    val speciesId: String = PokemonCatalog.PIKACHU,
+    val name: String = "PokePet",
+    val state: PokemonState = PokemonState()
+)
+
+@RequiresApi(Build.VERSION_CODES.O)
 class PetViewModel : ViewModel() {
-    // Estados Vitais
+    private val auth = FirebaseAuth.getInstance()
+    private val dbRef = FirebaseDatabase.getInstance().reference
+
+    // --- ESTADOS REACTIVOS (UI) ---
+    var activePokemonId by mutableStateOf<String?>(null)
+    var activePokemonName by mutableStateOf("PokePet")
+    var activeSpeciesId by mutableStateOf(PokemonCatalog.PIKACHU)
+
     var health by mutableFloatStateOf(0.7f)
     var hygiene by mutableFloatStateOf(0.7f)
     var food by mutableFloatStateOf(0.7f)
     var coins by mutableIntStateOf(200)
-
-    // Progressão
     var currentXP by mutableFloatStateOf(0f)
     var currentLevel by mutableIntStateOf(1)
 
-    // Tutorial e Flags
     var hasSeenPokeCenterTutorial by mutableStateOf(false)
     var hasShownPokeCenterUnlockWarning by mutableStateOf(false)
     var hasSeenPokedexTutorial by mutableStateOf(false)
 
-    fun markPokedexTutorialAsSeen() { hasSeenPokedexTutorial = true }
-
-    // Inventário e Desbloqueios
     val inventory = mutableStateListOf<InventoryItem>()
-    val isPokeCenterUnlocked by derivedStateOf { currentLevel >= 2 }
-
     var caughtPokemonList = mutableStateListOf<CaughtPokemon>()
 
-    // Lista de IDs (derivada) para compatibilidade com silhuetas
+    val isPokeCenterUnlocked by derivedStateOf { currentLevel >= 2 }
     val caughtPokemonIds by derivedStateOf { caughtPokemonList.map { it.pokemonId } }
 
-    init { startDegradationLoop() }
+    init {
+        if (auth.currentUser != null) {
+            loadUserDataFromFirebase()
+        }
+        startDegradationLoop()
+    }
 
-    private fun startDegradationLoop() {
-        viewModelScope.launch {
-            while (isActive) {
-                delay(10000)
-                food = (food - 0.01f).coerceAtLeast(0f)
-                hygiene = (hygiene - 0.01f).coerceAtLeast(0f)
-                if (food <= 0.1f || hygiene <= 0.1f) health = (health - 0.02f).coerceAtLeast(0f)
+    // --- FIREBASE: CARREGAMENTO E LOGIN ---
+
+    private fun userRef() = auth.currentUser?.uid?.let { dbRef.child("users").child(it) }
+
+    /** Decide se o utilizador vai para o MainScreen ou HatchingScreen */
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun loadActivePokemon(onResult: (Boolean, String?) -> Unit) {
+        val ref = userRef() ?: return onResult(false, "Not logged in")
+        ref.child("activePokemonId").get().addOnSuccessListener { snap ->
+            val pid = snap.getValue(String::class.java)
+            if (pid.isNullOrBlank()) {
+                onResult(false, null)
+            } else {
+                loadUserDataFromFirebase()
+                onResult(true, null)
+            }
+        }.addOnFailureListener { onResult(false, it.message) }
+    }
+
+    fun loadUserDataFromFirebase() {
+        val ref = userRef() ?: return
+        ref.get().addOnSuccessListener { snap ->
+            if (snap.exists()) {
+                // Sintaxe correta: getValue(Classe::class.java) sem o prefixo 'key ='
+                activePokemonId = snap.child("activePokemonId").getValue(String::class.java)
+                activePokemonName = snap.child("activePokemonName").getValue(String::class.java) ?: "PokePet"
+                activeSpeciesId = snap.child("activeSpeciesId").getValue(String::class.java) ?: PokemonCatalog.PIKACHU
+
+                health = snap.child("health").getValue(Float::class.java) ?: 0.7f
+                hygiene = snap.child("hygiene").getValue(Float::class.java) ?: 0.7f
+                food = snap.child("food").getValue(Float::class.java) ?: 0.7f
+                coins = snap.child("coins").getValue(Int::class.java) ?: 200
+                currentLevel = snap.child("currentLevel").getValue(Int::class.java) ?: 1
+                currentXP = snap.child("currentXP").getValue(Float::class.java) ?: 0f
             }
         }
     }
 
-    // Função atualizada para aceitar o objeto completo
-    fun addToPokedex(pokemon: CaughtPokemon) {
-        if (!caughtPokemonIds.contains(pokemon.pokemonId)) {
-            caughtPokemonList.add(pokemon)
-        }
+    /** Salva todos os dados do utilizador no Realtime Database */
+    fun saveUserData() {
+        val ref = userRef() ?: return
+        val data = mapOf(
+            "activePokemonId" to activePokemonId,
+            "activePokemonName" to activePokemonName,
+            "activeSpeciesId" to activeSpeciesId,
+            "health" to health, "hygiene" to hygiene, "food" to food, "coins" to coins,
+            "currentLevel" to currentLevel, "currentXP" to currentXP,
+            "hasSeenPokeCenterTutorial" to hasSeenPokeCenterTutorial,
+            "hasSeenPokedexTutorial" to hasSeenPokedexTutorial,
+            "inventory" to inventory.toList(),
+            "pokedex" to caughtPokemonList.toList()
+        )
+        ref.updateChildren(data)
     }
 
-    fun gainXP(amount: Float) {
-        val total = currentXP + amount
-        if (total >= 1.0f) {
-            currentLevel++
-            currentXP = total - 1.0f
-            coins += 100
-        } else {
-            currentXP = total
-        }
+    // --- LÓGICA DE HATCHING ALEATÓRIO ---
+
+    /** Sorteia um Pokémon aleatório apenas no nascimento */
+    fun createPokemonFromHatch(petName: String, onResult: (Boolean, String?) -> Unit) {
+        val ref = userRef() ?: return onResult(false, "Not logged in")
+        val speciesOptions = listOf(PokemonCatalog.PIKACHU, PokemonCatalog.CHARMANDER, PokemonCatalog.BULBASAUR)
+        val chosenSpecies = speciesOptions.random()
+
+        activePokemonId = ref.child("pokemons").push().key
+        activePokemonName = petName.ifBlank { "PokePet" }
+        activeSpeciesId = chosenSpecies
+
+        health = 1.0f; hygiene = 1.0f; food = 1.0f; currentXP = 0f; currentLevel = 1
+        saveUserData()
+        onResult(true, null)
     }
 
-    fun feed() {
-        food = 1f
-        coins += 10
-        updateHealth()
-        gainXP(0.25f) }
-    fun clean() {
-        hygiene = 1f
-        coins += 10
-        updateHealth()
-        gainXP(0.25f) }
+    // --- ACÇÕES DE JOGO ---
 
-    private fun updateHealth() {
-        if (food > 0.8f && hygiene > 0.8f) health = min(health + 0.1f, 1f)
-    }
+    fun feed() { food = 1f; coins += 10; updateHealth(); gainXP(0.25f); saveUserData() }
+    fun clean() { hygiene = 1f; coins += 10; updateHealth(); gainXP(0.25f); saveUserData() }
 
     fun buyItem(type: ItemType, price: Int, name: String, icon: Int) {
         if (coins >= price) {
             coins -= price
             inventory.add(InventoryItem(type = type, name = name, icon = icon))
-            currentXP += 0.1f
-
+            saveUserData()
         }
     }
 
@@ -115,5 +204,35 @@ class PetViewModel : ViewModel() {
             else -> {}
         }
         inventory.remove(item)
+        saveUserData()
     }
+
+    fun gainXP(amount: Float) {
+        val nextXP = currentXP + amount
+        if (nextXP >= 1f) { currentLevel++; currentXP = nextXP - 1f; coins += 100 }
+        else currentXP = nextXP
+        saveUserData()
+    }
+
+    fun addToPokedex(pokemon: CaughtPokemon) {
+        if (!caughtPokemonIds.contains(pokemon.pokemonId)) {
+            caughtPokemonList.add(pokemon)
+            saveUserData()
+        }
+    }
+
+    private fun startDegradationLoop() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(15000)
+                food = (food - 0.01f).coerceAtLeast(0f)
+                hygiene = (hygiene - 0.01f).coerceAtLeast(0f)
+                if (food <= 0.1f || hygiene <= 0.1f) health = (health - 0.02f).coerceAtLeast(0f)
+            }
+        }
+    }
+
+    private fun updateHealth() { if (food > 0.8f && hygiene > 0.8f) health = min(health + 0.1f, 1f) }
+    fun clearLocalPokemon() { activePokemonId = null; activePokemonName = "PokePet"; inventory.clear(); caughtPokemonList.clear() }
+    fun markPokedexTutorialAsSeen() { hasSeenPokedexTutorial = true; saveUserData() }
 }

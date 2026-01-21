@@ -5,7 +5,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,20 +37,23 @@ fun PetMainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-
-    // --- ESTADOS DE TUTORIAL E CELEBRAÇÃO ---
+    // --- ESTADOS DE CONTROLO ---
     var showHatchTutorial by remember { mutableStateOf(viewModel.currentLevel == 1 && viewModel.currentXP == 0f) }
     var showLevelUpEffect by remember { mutableStateOf(false) }
 
-    // 1. Detetar subida de nível para disparar confetes
+    // Guardamos o nível anterior para detetar a subida real e evitar disparar ao abrir a app
+    var previousLevel by remember { mutableIntStateOf(viewModel.currentLevel) }
+
+    // 1. Detetar subida de nível real para efeitos visuais
     LaunchedEffect(viewModel.currentLevel) {
-        if (viewModel.currentLevel > 1) {
+        if (viewModel.currentLevel > previousLevel) {
             showLevelUpEffect = true
-            delay(3000)
+            delay(3000) // Efeito visível por 3 segundos
             showLevelUpEffect = false
         }
+        previousLevel = viewModel.currentLevel
 
-        // 2. LOGICA DE DESBLOQUEIO: Dispara o Snackbar apenas no Nível 2 e uma única vez
+        // 2. Lógica de Desbloqueio do PokeCenter no Nível 2
         if (viewModel.currentLevel >= 2 && !viewModel.hasShownPokeCenterUnlockWarning) {
             scope.launch {
                 val result = snackbarHostState.showSnackbar(
@@ -67,6 +69,7 @@ fun PetMainScreen(
         }
     }
 
+    // Alerta de Tutorial inicial para novos jogadores
     if (showHatchTutorial) {
         AlertDialog(
             onDismissRequest = { },
@@ -97,7 +100,7 @@ fun PetMainScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Título e Nível
+                // Título e Nível Atual
                 Text(text = "Yay! $petName has hatched!", fontSize = 18.sp)
                 Text(
                     text = "Nível ${viewModel.currentLevel}",
@@ -108,10 +111,10 @@ fun PetMainScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Imagem do Pet
+                // Imagem Dinâmica do Pokémon Ativo
                 Box(contentAlignment = Alignment.Center) {
                     AsyncImage(
-                        model = R.drawable.happy,
+                        model = PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId),
                         contentDescription = "Pet",
                         modifier = Modifier.size(200.dp)
                     )
@@ -123,12 +126,15 @@ fun PetMainScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Barra de XP
+                // Barra de Progresso de XP
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "XP: ${(viewModel.currentXP * 100).toInt()}%", fontSize = 12.sp)
                     LinearProgressIndicator(
                         progress = { viewModel.currentXP },
-                        modifier = Modifier.width(200.dp).height(10.dp).clip(CircleShape),
+                        modifier = Modifier
+                            .width(200.dp)
+                            .height(10.dp)
+                            .clip(CircleShape),
                         color = Color(0xFFFFD700),
                         trackColor = Color.LightGray
                     )
@@ -138,6 +144,7 @@ fun PetMainScreen(
                 VitalStatesSection(viewModel)
                 Spacer(modifier = Modifier.weight(1f))
 
+                // Botões de Ação Inferiores
                 ActionButtonsRow(
                     navController = navController,
                     viewModel = viewModel,
@@ -147,6 +154,7 @@ fun PetMainScreen(
                 )
             }
 
+            // Camada de Confetes para celebração
             if (showLevelUpEffect) {
                 ConfettiOverlay()
             }
@@ -154,20 +162,25 @@ fun PetMainScreen(
     }
 }
 
-// --- COMPONENTES DE ANIMAÇÃO MANTIDOS ---
+// --- COMPONENTES AUXILIARES ---
+
 @Composable
 fun LevelUpAnimation() {
-    val infiniteTransition = rememberInfiniteTransition(label = "")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse), label = ""
+    val scale by animateFloatAsState(
+        targetValue = 1.1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
     )
+
     Text(
         text = "LEVEL UP!",
         color = Color(0xFFFFD700),
         fontWeight = FontWeight.Black,
-        fontSize = 32.sp,
-        modifier = Modifier.scale(scale).background(Color.Black.copy(0.3f), RoundedCornerShape(8.dp)).padding(8.dp)
+        fontSize = 24.sp,
+        modifier = Modifier
+            .scale(scale)
+            .background(Color.Black.copy(0.6f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     )
 }
 
@@ -182,7 +195,9 @@ fun ConfettiOverlay() {
             )
             Text(
                 text = listOf("✨", "⭐", "🎉", "🎊").random(),
-                modifier = Modifier.offset(x = (startX / 3).dp, y = (animY.value / 4).dp).alpha(0.7f)
+                modifier = Modifier
+                    .offset(x = (startX / 3).dp, y = (animY.value / 4).dp)
+                    .alpha(0.7f)
             )
         }
     }
@@ -221,7 +236,10 @@ fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Flo
         Column(Modifier.weight(1f)) {
             LinearProgressIndicator(
                 progress = { level },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape),
                 color = finalColor, trackColor = Color.LightGray
             )
             if (level < 0.2f) Text("LOW $label!", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -241,7 +259,6 @@ fun ActionButtonsRow(navController: NavController, viewModel: PetViewModel, onLo
                     else onLockedClick()
                 }
             )
-            // Mantemos o ponto vermelho para indicar que algo novo foi desbloqueado
             if (viewModel.isPokeCenterUnlocked && !viewModel.hasSeenPokeCenterTutorial) {
                 Box(Modifier.size(12.dp).align(Alignment.TopEnd).background(Color.Red, CircleShape))
             }
@@ -255,7 +272,12 @@ fun ActionButtonsRow(navController: NavController, viewModel: PetViewModel, onLo
 @Composable
 fun ActionButton(@DrawableRes iconRes: Int, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Surface(onClick = onClick, modifier = Modifier.size(64.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.size(64.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
             Image(painterResource(iconRes), null, Modifier.padding(12.dp))
         }
         Text(label, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))

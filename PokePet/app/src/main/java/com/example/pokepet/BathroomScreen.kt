@@ -34,6 +34,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
+// --- ESTADOS DO PROCESSO DE BANHO ---
 private sealed class WashingStep {
     object Idle : WashingStep()
     object WaterOn : WashingStep()
@@ -58,22 +59,24 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
     var soapVisible by remember { mutableStateOf(true) }
     val bubbles = remember { mutableStateListOf<Bubble>() }
     var scrubbingProgress by remember { mutableFloatStateOf(0f) }
-    val targetScrubbing = 5000f // Valor total de movimento necessário
+    val targetScrubbing = 5000f
 
-    // Estados do Pet
+    // Estados de colisão do Pet
     var petBounds by remember { mutableStateOf(Rect.Zero) }
 
-    val pikachuImage = when (step) {
-        WashingStep.Idle -> R.drawable.ic_dirty_pikachu
-        WashingStep.WaterOn, WashingStep.ReadyToSoap, WashingStep.Soaped, WashingStep.ReadyToDry -> R.drawable.pikachu_wet
-        WashingStep.Rinsing -> R.drawable.pikachu_wet
-        WashingStep.Clean -> R.drawable.pikachu_happy
+    // --- IMAGEM DINÂMICA DO POKÉMON ---
+    // Utiliza o activeSpeciesId do utilizador e muda o estado visual conforme o banho progride
+    val pokemonImage = when (step) {
+        WashingStep.Idle -> PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId, "DIRTY")
+        WashingStep.Clean -> PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId, "HAPPY")
+        else -> PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId, "WET")
     }
 
-    // Sensor Shake (Secar)
+    // --- SENSOR SHAKE (SECAGEM) ---
     val context = LocalContext.current
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
+
     val shakeEventListener = remember {
         object : SensorEventListener {
             private var lastUpdate: Long = 0
@@ -82,8 +85,14 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                 val t = System.currentTimeMillis()
                 if (t - lastUpdate > 100) {
                     val s = abs(event.values[0] + event.values[1] + event.values[2] - lx - ly - lz) / (t - lastUpdate) * 10000
+                    // Se o utilizador abanar o telemóvel na etapa de secagem
                     if (s > 800 && step == WashingStep.ReadyToDry) {
-                        scope.launch { if (step != WashingStep.Clean) { step = WashingStep.Clean; viewModel.clean() } }
+                        scope.launch {
+                            if (step != WashingStep.Clean) {
+                                step = WashingStep.Clean
+                                viewModel.clean() // Sincroniza higiene total no Firebase
+                            }
+                        }
                     }
                     lastUpdate = t; lx = event.values[0]; ly = event.values[1]; lz = event.values[2]
                 }
@@ -97,38 +106,40 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
         onDispose { sensorManager.unregisterListener(shakeEventListener) }
     }
 
+    // Texto de instrução que usa o nome personalizado do teu pet
     val instructionText = when (step) {
         WashingStep.Idle -> "Turn on the tap!"
         WashingStep.WaterOn -> "Turn the water off."
-        WashingStep.ReadyToSoap -> "Pick up the soap and rub it on your PokePet!"
+        WashingStep.ReadyToSoap -> "Pick up the soap and rub it on your ${viewModel.activePokemonName}!"
         WashingStep.Soaped -> "Turn the water on to clear off the soap!"
         WashingStep.Rinsing -> "Don't forget to turn your water off!"
         WashingStep.ReadyToDry -> "Shake your phone to dry!"
         WashingStep.Clean -> "All clean! Great Job"
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Bath") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Bath Time") }) }) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(instructionText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
 
-            // Barra de progresso de "Esfregar"
+            // Barra de progresso para a fase de esfregar o sabão
             if (step == WashingStep.ReadyToSoap && scrubbingProgress > 0) {
                 LinearProgressIndicator(
-                    progress = scrubbingProgress / targetScrubbing,
+                    progress = { scrubbingProgress / targetScrubbing },
                     modifier = Modifier.padding(top = 8.dp).width(200.dp).clip(RoundedCornerShape(10.dp)),
                     color = Color(0xFF03A9F4)
                 )
             }
 
             if (step == WashingStep.Clean) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = { navController.popBackStack() }) { Text("Go back") }
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                // Chuveiro e Torneira
+                // Chuveiro (visual da água a correr)
                 val isWaterRunning = step == WashingStep.WaterOn || step == WashingStep.Rinsing
                 Image(
                     painter = painterResource(if (isWaterRunning) R.drawable.chuveirocagua else R.drawable.chuveirosagua),
@@ -136,9 +147,10 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                     modifier = Modifier.size(120.dp).align(Alignment.TopCenter).offset(x = (-50).dp)
                 )
 
+                // Torneira interativa (Tap Gestures)
                 Image(
                     painter = painterResource(R.drawable.tap),
-                    contentDescription = null,
+                    contentDescription = "Tap",
                     modifier = Modifier.size(100.dp).align(Alignment.CenterEnd).offset(x = (-40).dp, y = 40.dp)
                         .pointerInput(Unit) {
                             detectTapGestures {
@@ -153,15 +165,15 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                         }
                 )
 
-                // Pikachu
+                // POKÉMON DINÂMICO
                 Image(
-                    painter = painterResource(pikachuImage),
-                    contentDescription = null,
+                    painter = painterResource(pokemonImage),
+                    contentDescription = "Pet",
                     modifier = Modifier.size(200.dp).align(Alignment.Center).offset(x = (-50).dp)
                         .onGloballyPositioned { petBounds = it.boundsInParent() }
                 )
 
-                // Bolhas (Clean Icons)
+                // Bolhas de sabão que aparecem ao esfregar
                 bubbles.forEach { bubble ->
                     Image(
                         painter = painterResource(R.drawable.clean_icon),
@@ -171,7 +183,7 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                     )
                 }
 
-                // Sabão com Detecção de Movimento (Esfregar)
+                // SABÃO (Lógica de Drag Gestures e Colisão)
                 if (soapVisible && step == WashingStep.ReadyToSoap) {
                     Image(
                         painter = painterResource(R.drawable.clean_page_icon),
@@ -186,12 +198,12 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                                     change.consume()
                                     soapOffset += dragAmount
 
-                                    // Se o sabão estiver sobre o pet E o utilizador o estiver a mover
+                                    // Deteta se o sabão está a passar por cima do Pokémon
                                     if (soapBounds.overlaps(petBounds)) {
                                         val movement = abs(dragAmount.x) + abs(dragAmount.y)
                                         scrubbingProgress += movement
 
-                                        // Cria bolhas proporcionalmente ao movimento
+                                        // Gera bolhas aleatoriamente
                                         if (Random.nextInt(10) < 2) {
                                             bubbles.add(Bubble(Random.nextInt(), Offset(Random.nextInt(-70, 70).toFloat(), Random.nextInt(-70, 70).toFloat())))
                                         }
