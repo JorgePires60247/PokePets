@@ -1,8 +1,10 @@
 package com.example.pokepet
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -16,6 +18,7 @@ import androidx.navigation.navArgument
 import com.example.pokepet.ui.theme.PokePetTheme
 
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -44,10 +47,10 @@ class MainActivity : ComponentActivity() {
 
                         // --- FLUXO INICIAL (HATCHING) ---
                         composable("hatching_screen") {
-                            // O ecrã de Hatching agora chama o ViewModel para criar o pokemon aleatório
                             PokePetScreen(
-                                onNameConfirmed = { petName ->
-                                    petViewModel.createPokemonFromHatch(petName) { success, _ ->
+                                onNameConfirmed = { petName, speciesId ->
+                                    // Passamos o nome E o ID da espécie para o ViewModel
+                                    petViewModel.createPokemonFromHatch(petName, speciesId) { success, _ ->
                                         if (success) {
                                             navController.navigate("main_screen/$petName") {
                                                 popUpTo("hatching_screen") { inclusive = true }

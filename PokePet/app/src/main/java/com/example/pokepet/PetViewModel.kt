@@ -16,12 +16,13 @@ import kotlin.math.min
 // --- CATALOGO E MODELOS DE DADOS ---
 
 object PokemonCatalog {
-    const val PIKACHU = "PIKACHU"
-    const val CHARMANDER = "CHARMANDER"
-    const val BULBASAUR = "BULBASAUR"
+    // MUDANÇA 1: Usamos IDs numéricos em vez de Strings para facilitar
+    const val BULBASAUR = 1
+    const val CHARMANDER = 2
+    const val PIKACHU = 3
 
-    /** Retorna o recurso de imagem com base na espécie e no estado (HAPPY, DIRTY, WET) */
-    fun getPokemonImage(speciesId: String, state: String = "HAPPY"): Int {
+    /** Retorna o recurso de imagem com base no ID (Int) e no estado */
+    fun getPokemonImage(speciesId: Int, state: String = "HAPPY"): Int {
         return when (speciesId) {
             CHARMANDER -> when (state) {
                 "DIRTY" -> R.drawable.charmender
@@ -33,11 +34,12 @@ object PokemonCatalog {
                 "WET" -> R.drawable.bulbasaur
                 else -> R.drawable.bulbasaur
             }
-            else -> when (state) { // Default: PIKACHU
+            PIKACHU -> when (state) {
                 "DIRTY" -> R.drawable.ic_dirty_pikachu
                 "WET" -> R.drawable.pikachu_wet
                 else -> R.drawable.pikachu_happy
             }
+            else -> R.drawable.p_mew
         }
     }
 }
@@ -68,13 +70,6 @@ data class PokemonState(
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
-data class OwnedPokemon(
-    val id: String = "",
-    val speciesId: String = PokemonCatalog.PIKACHU,
-    val name: String = "PokePet",
-    val state: PokemonState = PokemonState()
-)
-
 @RequiresApi(Build.VERSION_CODES.O)
 class PetViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -83,7 +78,9 @@ class PetViewModel : ViewModel() {
     // --- ESTADOS REACTIVOS (UI) ---
     var activePokemonId by mutableStateOf<String?>(null)
     var activePokemonName by mutableStateOf("PokePet")
-    var activeSpeciesId by mutableStateOf(PokemonCatalog.PIKACHU)
+
+    // MUDANÇA 2: activeSpeciesId agora é um Int (padrão Bulbasaur = 1)
+    var activeSpeciesId by mutableIntStateOf(PokemonCatalog.BULBASAUR)
 
     var health by mutableFloatStateOf(0.7f)
     var hygiene by mutableFloatStateOf(0.7f)
@@ -113,7 +110,6 @@ class PetViewModel : ViewModel() {
 
     private fun userRef() = auth.currentUser?.uid?.let { dbRef.child("users").child(it) }
 
-    /** Decide se o utilizador vai para o MainScreen ou HatchingScreen */
     @RequiresApi(Build.VERSION_CODES.O)
     fun loadActivePokemon(onResult: (Boolean, String?) -> Unit) {
         val ref = userRef() ?: return onResult(false, "Not logged in")
@@ -132,10 +128,11 @@ class PetViewModel : ViewModel() {
         val ref = userRef() ?: return
         ref.get().addOnSuccessListener { snap ->
             if (snap.exists()) {
-                // Sintaxe correta: getValue(Classe::class.java) sem o prefixo 'key ='
                 activePokemonId = snap.child("activePokemonId").getValue(String::class.java)
                 activePokemonName = snap.child("activePokemonName").getValue(String::class.java) ?: "PokePet"
-                activeSpeciesId = snap.child("activeSpeciesId").getValue(String::class.java) ?: PokemonCatalog.PIKACHU
+
+                // MUDANÇA 3: Carregar como Inteiro (Int::class.java)
+                activeSpeciesId = snap.child("activeSpeciesId").getValue(Int::class.java) ?: PokemonCatalog.BULBASAUR
 
                 health = snap.child("health").getValue(Float::class.java) ?: 0.7f
                 hygiene = snap.child("hygiene").getValue(Float::class.java) ?: 0.7f
@@ -147,13 +144,12 @@ class PetViewModel : ViewModel() {
         }
     }
 
-    /** Salva todos os dados do utilizador no Realtime Database */
     fun saveUserData() {
         val ref = userRef() ?: return
         val data = mapOf(
             "activePokemonId" to activePokemonId,
             "activePokemonName" to activePokemonName,
-            "activeSpeciesId" to activeSpeciesId,
+            "activeSpeciesId" to activeSpeciesId, // Agora salva como número (ex: 1, 2, 3)
             "health" to health, "hygiene" to hygiene, "food" to food, "coins" to coins,
             "currentLevel" to currentLevel, "currentXP" to currentXP,
             "hasSeenPokeCenterTutorial" to hasSeenPokeCenterTutorial,
@@ -164,24 +160,24 @@ class PetViewModel : ViewModel() {
         ref.updateChildren(data)
     }
 
-    // --- LÓGICA DE HATCHING ALEATÓRIO ---
+    // --- LÓGICA DE HATCHING ---
 
-    /** Sorteia um Pokémon aleatório apenas no nascimento */
-    fun createPokemonFromHatch(petName: String, onResult: (Boolean, String?) -> Unit) {
+    /** * MUDANÇA 4: Agora RECEBE o speciesId vindo da UI, não sorteia aqui.
+     * Isso garante que o que o utilizador viu no ovo é o que é salvo.
+     */
+    fun createPokemonFromHatch(petName: String, speciesId: Int, onResult: (Boolean, String?) -> Unit) {
         val ref = userRef() ?: return onResult(false, "Not logged in")
-        val speciesOptions = listOf(PokemonCatalog.PIKACHU, PokemonCatalog.CHARMANDER, PokemonCatalog.BULBASAUR)
-        val chosenSpecies = speciesOptions.random()
 
         activePokemonId = ref.child("pokemons").push().key
         activePokemonName = petName.ifBlank { "PokePet" }
-        activeSpeciesId = chosenSpecies
+        activeSpeciesId = speciesId // Usamos o ID que veio da UI (Int)
 
         health = 1.0f; hygiene = 1.0f; food = 1.0f; currentXP = 0f; currentLevel = 1
         saveUserData()
         onResult(true, null)
     }
 
-    // --- ACÇÕES DE JOGO ---
+    // --- ACÇÕES DE JOGO (Mantêm-se iguais) ---
 
     fun feed() { food = 1f; coins += 10; updateHealth(); gainXP(0.25f); saveUserData() }
     fun clean() { hygiene = 1f; coins += 10; updateHealth(); gainXP(0.25f); saveUserData() }
