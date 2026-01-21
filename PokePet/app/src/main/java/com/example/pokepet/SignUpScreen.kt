@@ -1,5 +1,7 @@
 package com.example.pokepet
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -17,6 +19,7 @@ import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
@@ -33,8 +36,8 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    val auth = FirebaseAuth.getInstance()
-    val dbRef = FirebaseDatabase.getInstance().reference
+    val auth = remember { FirebaseAuth.getInstance() }
+    val dbRef = remember { FirebaseDatabase.getInstance().reference }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -150,6 +153,9 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
                                                 errorMsg = writeTask.exception?.message ?: "Failed to save profile."
                                             }
                                         }
+                                }else{
+                                    isLoading = false
+                                    errorMsg = "Erro: Utilizador criado, mas ID não encontrado."
                                 }
                             } else {
                                 isLoading = false
