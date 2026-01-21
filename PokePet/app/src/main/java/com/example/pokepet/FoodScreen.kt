@@ -14,6 +14,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -111,12 +114,26 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
         }
     }
 
-    // Ativa o sensor de abalo para misturar os ingredientes
     if (allBerriesDropped && !isMixed) {
         ShakeDetector(onShakeDetected = { isMixed = true })
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Kitchen") }) }) { padding ->
+    // --- SCAFFOLD COM BOTÃO DE VOLTAR ---
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Kitchen") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -224,15 +241,40 @@ fun CookingProgressBar(progress: Float, color: Color, label: String, hasTarget: 
 @Composable
 fun DraggableBerryItem(berry: BerryType, isDropped: Boolean, potBounds: androidx.compose.ui.geometry.Rect, onDropSuccess: () -> Unit) {
     if (isDropped) return
+
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var startPosition by remember { mutableStateOf(Offset.Zero) } // 1. Nova variável para saber onde a baga nasce
+
     val density = LocalDensity.current
+
     Column(
-        modifier = Modifier.offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+        modifier = Modifier
+            // 2. Detetar onde a baga está no ecrã (Coordenadas Globais)
+            .onGloballyPositioned { coordinates ->
+                if (offset == Offset.Zero) {
+                    startPosition = coordinates.positionInRoot()
+                }
+            }
+            .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
             .pointerInput(Unit) {
-                detectDragGestures(onDragEnd = {
-                    val itemSizePx = with(density) { 50.dp.toPx() }
-                    if (potBounds.contains(offset + Offset(itemSizePx/2, itemSizePx/2))) onDropSuccess() else offset = Offset.Zero
-                }, onDrag = { change, dragAmount -> change.consume(); offset += dragAmount })
+                detectDragGestures(
+                    onDragEnd = {
+                        val itemSizePx = with(density) { 50.dp.toPx() }
+                        val centerOffset = Offset(itemSizePx / 2, itemSizePx / 2)
+
+                        val absolutePosition = startPosition + offset + centerOffset
+
+                        if (potBounds.contains(absolutePosition)) {
+                            onDropSuccess()
+                        } else {
+                            offset = Offset.Zero
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        offset += dragAmount
+                    }
+                )
             },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

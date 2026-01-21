@@ -6,11 +6,12 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -117,9 +118,27 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
         WashingStep.Clean -> "All clean! Great Job"
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Bath Time") }) }) { padding ->
+    // --- UI PRINCIPAL COM O BOTÃO DE VOLTAR ADICIONADO ---
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Bath Time") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(instructionText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -128,13 +147,17 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
             if (step == WashingStep.ReadyToSoap && scrubbingProgress > 0) {
                 LinearProgressIndicator(
                     progress = { scrubbingProgress / targetScrubbing },
-                    modifier = Modifier.padding(top = 8.dp).width(200.dp).clip(RoundedCornerShape(10.dp)),
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .width(200.dp)
+                        .clip(RoundedCornerShape(10.dp)),
                     color = Color(0xFF03A9F4)
                 )
             }
 
             if (step == WashingStep.Clean) {
                 Spacer(modifier = Modifier.height(16.dp))
+                // Este botão extra também volta para trás, podes manter ou remover
                 Button(onClick = { navController.popBackStack() }) { Text("Go back") }
             }
 
@@ -144,20 +167,28 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                 Image(
                     painter = painterResource(if (isWaterRunning) R.drawable.chuveirocagua else R.drawable.chuveirosagua),
                     contentDescription = null,
-                    modifier = Modifier.size(120.dp).align(Alignment.TopCenter).offset(x = (-50).dp)
+                    modifier = Modifier
+                        .size(200.dp)
+                        .align(Alignment.TopCenter)
+                        .offset(x = (-60).dp, y = 10.dp)
                 )
 
                 // Torneira interativa (Tap Gestures)
                 Image(
                     painter = painterResource(R.drawable.tap),
                     contentDescription = "Tap",
-                    modifier = Modifier.size(100.dp).align(Alignment.CenterEnd).offset(x = (-40).dp, y = 40.dp)
+                    modifier = Modifier
+                        .size(120.dp)
+                        .align(Alignment.CenterEnd)
+                        .offset(x = (-10).dp, y = 36.dp)
                         .pointerInput(Unit) {
                             detectTapGestures {
                                 step = when (step) {
                                     WashingStep.Idle -> WashingStep.WaterOn
                                     WashingStep.WaterOn -> WashingStep.ReadyToSoap
-                                    WashingStep.Soaped -> { bubbles.clear(); WashingStep.Rinsing }
+                                    WashingStep.Soaped -> {
+                                        bubbles.clear(); WashingStep.Rinsing
+                                    }
                                     WashingStep.Rinsing -> WashingStep.ReadyToDry
                                     else -> step
                                 }
@@ -169,7 +200,10 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                 Image(
                     painter = painterResource(pokemonImage),
                     contentDescription = "Pet",
-                    modifier = Modifier.size(200.dp).align(Alignment.Center).offset(x = (-50).dp)
+                    modifier = Modifier
+                        .size(200.dp)
+                        .align(Alignment.Center)
+                        .offset(x = (-50).dp)
                         .onGloballyPositioned { petBounds = it.boundsInParent() }
                 )
 
@@ -178,7 +212,9 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                     Image(
                         painter = painterResource(R.drawable.clean_icon),
                         contentDescription = null,
-                        modifier = Modifier.size(60.dp).align(Alignment.Center)
+                        modifier = Modifier
+                            .size(60.dp)
+                            .align(Alignment.Center)
                             .offset(x = bubble.offset.x.dp - 50.dp, y = bubble.offset.y.dp)
                     )
                 }
@@ -188,7 +224,8 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
                     Image(
                         painter = painterResource(R.drawable.clean_page_icon),
                         contentDescription = "Soap",
-                        modifier = Modifier.align(Alignment.BottomCenter)
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
                             .offset { IntOffset(soapOffset.x.roundToInt(), soapOffset.y.roundToInt()) }
                             .size(90.dp)
                             .onGloballyPositioned { soapBounds = it.boundsInParent() }
@@ -205,7 +242,15 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
 
                                         // Gera bolhas aleatoriamente
                                         if (Random.nextInt(10) < 2) {
-                                            bubbles.add(Bubble(Random.nextInt(), Offset(Random.nextInt(-70, 70).toFloat(), Random.nextInt(-70, 70).toFloat())))
+                                            bubbles.add(
+                                                Bubble(
+                                                    Random.nextInt(),
+                                                    Offset(
+                                                        Random.nextInt(-70, 70).toFloat(),
+                                                        Random.nextInt(-70, 70).toFloat()
+                                                    )
+                                                )
+                                            )
                                         }
 
                                         if (scrubbingProgress >= targetScrubbing) {
