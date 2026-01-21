@@ -1,6 +1,9 @@
 package com.example.pokepet
 
+import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -10,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +31,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PetMainScreen(
@@ -39,21 +44,28 @@ fun PetMainScreen(
 
     // --- ESTADOS DE CONTROLO ---
     var showHatchTutorial by remember { mutableStateOf(viewModel.currentLevel == 1 && viewModel.currentXP == 0f) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // Internal state for the visual Level Up overlay
     var showLevelUpEffect by remember { mutableStateOf(false) }
 
-    // Guardamos o nível anterior para detetar a subida real e evitar disparar ao abrir a app
-    var previousLevel by remember { mutableIntStateOf(viewModel.currentLevel) }
+    // Intercetar o botão "Back" do sistema para Logout
+    BackHandler(enabled = true) {
+        showLogoutDialog = true
+    }
 
-    // 1. Detetar subida de nível real para efeitos visuais
-    LaunchedEffect(viewModel.currentLevel) {
-        if (viewModel.currentLevel > previousLevel) {
+    // 1. EFEITO VISUAL: Deteta se há uma celebração pendente no ViewModel
+    LaunchedEffect(viewModel.showLevelUpCelebration) {
+        if (viewModel.showLevelUpCelebration) {
             showLevelUpEffect = true
-            delay(3000) // Efeito visível por 3 segundos
+            delay(4000) // Duração do efeito visual
             showLevelUpEffect = false
+            viewModel.showLevelUpCelebration = false // Resetar o flag no ViewModel após mostrar
         }
-        previousLevel = viewModel.currentLevel
+    }
 
-        // 2. Lógica de Desbloqueio do PokeCenter no Nível 2
+    // 2. SNACKBAR: Lógica de Desbloqueio do PokeCenter no Nível 2
+    LaunchedEffect(viewModel.currentLevel) {
         if (viewModel.currentLevel >= 2 && !viewModel.hasShownPokeCenterUnlockWarning) {
             scope.launch {
                 val result = snackbarHostState.showSnackbar(
@@ -69,7 +81,29 @@ fun PetMainScreen(
         }
     }
 
-    // Alerta de Tutorial inicial para novos jogadores
+    // --- DIÁLOGO DE LOGOUT ---
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to log out?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        navController.navigate("login_screen") {
+                            popUpTo("main_screen/{petName}") { inclusive = true }
+                        }
+                    }
+                ) { Text("Yes") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("No") }
+            }
+        )
+    }
+
+    // Alerta de Tutorial inicial
     if (showHatchTutorial) {
         AlertDialog(
             onDismissRequest = { },
@@ -92,18 +126,17 @@ fun PetMainScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Título e Nível Atual
                 Text(text = "Yay! $petName has hatched!", fontSize = 18.sp)
                 Text(
-                    text = "Nível ${viewModel.currentLevel}",
+                    text = "Level ${viewModel.currentLevel}",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
@@ -119,6 +152,7 @@ fun PetMainScreen(
                         modifier = Modifier.size(200.dp)
                     )
 
+                    // Overlay de Level Up
                     if (showLevelUpEffect) {
                         LevelUpAnimation()
                     }
@@ -154,7 +188,22 @@ fun PetMainScreen(
                 )
             }
 
-            // Camada de Confetes para celebração
+            // BOTÃO DE AJUDA (Top Right)
+            IconButton(
+                onClick = { showHatchTutorial = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(Color.LightGray.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Help",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Camada de Confetes
             if (showLevelUpEffect) {
                 ConfettiOverlay()
             }
@@ -203,12 +252,12 @@ fun ConfettiOverlay() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun VitalStatesSection(viewModel: PetViewModel) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Vital States", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
         }
         Spacer(modifier = Modifier.height(16.dp))
         VitalStat(R.drawable.hp_icon, Color.Red, "Health", viewModel.health)
@@ -247,6 +296,7 @@ fun VitalStat(@DrawableRes iconRes: Int, color: Color, label: String, level: Flo
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ActionButtonsRow(navController: NavController, viewModel: PetViewModel, onLockedClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {

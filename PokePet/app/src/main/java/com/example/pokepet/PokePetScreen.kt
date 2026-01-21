@@ -29,7 +29,10 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
     var tapCount by remember { mutableIntStateOf(0) }
     val targetTaps = 10
 
-    // 1. Guardamos o ID da ESPÉCIE (1, 2 ou 3), e não o R.drawable direto
+    // Regex restriction: Only letters (no spaces, numbers, or symbols)
+    val namePattern = remember { Regex("^[a-zA-Z]*$") }
+
+    // 1. Guardamos o ID da ESPÉCIE (1, 2 ou 3)
     var hatchedSpeciesId by remember { mutableIntStateOf(PokemonCatalog.BULBASAUR) }
 
     // 2. Lista de IDs possíveis (1, 2, 3)
@@ -45,10 +48,8 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
     val scale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
 
-    // Lógica da Imagem: Se nasceu, pede ao Catálogo a imagem do ID sorteado.
     val currentImage = remember(tapCount, isHatched, hatchedSpeciesId) {
         if (isHatched) {
-            // AQUI ESTÁ O TRUQUE: Convertemos o ID (1, 2, 3) na imagem correta
             PokemonCatalog.getPokemonImage(hatchedSpeciesId)
         } else {
             when {
@@ -104,7 +105,6 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
                     .clickable(enabled = !isHatched) {
                         tapCount++
                         scope.launch {
-                            // Animação de abanar
                             scale.animateTo(1.1f, tween(50))
                             scale.animateTo(1f, tween(50))
 
@@ -112,11 +112,8 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
                             rotation.animateTo(-10f, tween(40))
                             rotation.animateTo(0f, tween(40))
 
-                            // Se atingiu o total de toques
                             if (tapCount >= targetTaps) {
-                                // 3. SORTEIO ALEATÓRIO DE IDs (1, 2 ou 3)
                                 hatchedSpeciesId = availableIds.random()
-
                                 scale.animateTo(1.5f, tween(200))
                                 isHatched = true
                                 scale.animateTo(1f, tween(200))
@@ -129,7 +126,6 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
         Spacer(modifier = Modifier.height(32.dp))
 
         if (isHatched) {
-            // Mostra qual pokemon saiu no texto (Opcional)
             val pokemonName = when(hatchedSpeciesId) {
                 PokemonCatalog.CHARMANDER -> "Charmander"
                 PokemonCatalog.BULBASAUR -> "Bulbasaur"
@@ -141,11 +137,19 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
 
             OutlinedTextField(
                 value = petName,
-                onValueChange = { petName = it },
+                onValueChange = { newValue ->
+                    // VALIDATION: Only update state if input matches letters-only pattern
+                    if (newValue.matches(namePattern)) {
+                        petName = newValue
+                    }
+                },
                 label = { Text("Pet Name") },
                 placeholder = { Text("Buddy") },
                 singleLine = true,
-                modifier = Modifier.width(200.dp)
+                modifier = Modifier.width(200.dp),
+                supportingText = {
+                    Text("Letters only, no spaces or symbols")
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -153,11 +157,10 @@ fun PokePetScreen(onNameConfirmed: (String, Int) -> Unit = { _, _ -> }) {
             Button(
                 onClick = {
                     val finalName = if (petName.isBlank()) "Buddy" else petName
-
-                    // --- CORREÇÃO DO ERRO ---
-                    // Agora passamos o Nome E o ID sorteado
                     onNameConfirmed(finalName, hatchedSpeciesId)
-                }
+                },
+                // Requisito: Apenas permitir se o utilizador escreveu algo
+                enabled = petName.isNotBlank()
             ) {
                 Text("Adopt Partner")
             }

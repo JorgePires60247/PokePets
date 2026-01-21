@@ -9,10 +9,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -47,6 +50,9 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Added weight to push the footer button down
+            Spacer(modifier = Modifier.weight(0.5f))
+
             Text(
                 text = "Create Your Account",
                 fontSize = 24.sp,
@@ -138,14 +144,12 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
                                     "email" to email.text.trim()
                                 )
 
-                                // Grava o perfil no Realtime Database
                                 if (uid != null) {
                                     dbRef.child("users").child(uid).child("profile").setValue(profile)
                                         .addOnCompleteListener { writeTask ->
                                             isLoading = false
                                             if (writeTask.isSuccessful) {
                                                 petViewModel.clearLocalPokemon()
-                                                // Navega para o Login após o registo bem-sucedido
                                                 navController.navigate("login_screen") {
                                                     popUpTo("signup_screen") { inclusive = true }
                                                 }
@@ -153,7 +157,7 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
                                                 errorMsg = writeTask.exception?.message ?: "Failed to save profile."
                                             }
                                         }
-                                }else{
+                                } else {
                                     isLoading = false
                                     errorMsg = "Erro: Utilizador criado, mas ID não encontrado."
                                 }
@@ -177,6 +181,27 @@ fun SignUpScreen(navController: NavController, petViewModel: PetViewModel) {
                         fontSize = 16.sp
                     )
                 }
+            }
+
+            // Pushes the footer to the bottom
+            Spacer(modifier = Modifier.weight(1f))
+
+            // --- THE LOOP BACK TO LOGIN ---
+            val annotatedText = buildAnnotatedString {
+                append("Already have an account? ")
+                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append("Log In")
+                }
+            }
+
+            TextButton(onClick = { navController.navigate("login_screen") }) {
+                Text(
+                    text = annotatedText,
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 24.dp)
+                )
             }
         }
     }

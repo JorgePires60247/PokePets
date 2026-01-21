@@ -106,6 +106,7 @@ class PetViewModel : ViewModel() {
         startDegradationLoop()
     }
 
+
     // --- FIREBASE: CARREGAMENTO E LOGIN ---
 
     private fun userRef() = auth.currentUser?.uid?.let { dbRef.child("users").child(it) }
@@ -203,9 +204,17 @@ class PetViewModel : ViewModel() {
         saveUserData()
     }
 
+    var showLevelUpCelebration by mutableStateOf(false)
+
     fun gainXP(amount: Float) {
         val nextXP = currentXP + amount
-        if (nextXP >= 1f) { currentLevel++; currentXP = nextXP - 1f; coins += 100 }
+        if (nextXP >= 1f) {
+            currentLevel++
+            currentXP = nextXP - 1f
+            coins += 100
+            // Trigger the flag when a level is gained
+            showLevelUpCelebration = true
+        }
         else currentXP = nextXP
         saveUserData()
     }
