@@ -50,7 +50,7 @@ fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
                 Column {
                     Text("Welcome to the PokeCenter! Here you can:")
                     Spacer(Modifier.height(8.dp))
-                    Text("• Shop: Buy potions, balls and special items.")
+                    Text("• Shop: Buy potions, Pokeballs and special items.")
                     Text("• Explore: Buy a Map and go find wild Pokemon!")
                     Text("• Store: Use your inventory to keep your pet happy.")
                 }

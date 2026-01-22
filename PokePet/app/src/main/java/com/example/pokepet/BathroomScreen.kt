@@ -112,7 +112,7 @@ fun BathroomScreen(navController: NavController, viewModel: PetViewModel) {
         WashingStep.Idle -> "Turn on the tap!"
         WashingStep.WaterOn -> "Turn the water off."
         WashingStep.ReadyToSoap -> "Pick up the soap and rub it on your ${viewModel.activePokemonName}!"
-        WashingStep.Soaped -> "Turn the water on to clear off the soap!"
+        WashingStep.Soaped -> "Turn the water on to clean off the soap!"
         WashingStep.Rinsing -> "Don't forget to turn your water off!"
         WashingStep.ReadyToDry -> "Shake your phone to dry!"
         WashingStep.Clean -> "All clean! Great Job"

@@ -52,10 +52,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import java.util.UUID
 import android.graphics.Color as AndroidColor
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -313,6 +313,7 @@ fun CatchScreen(
                         val rarity = if (xpReward > 0.3f) "Legendary" else if (xpReward > 0.1f) "Rare" else "Common"
                         viewModel.gainXP(xpReward)
                         viewModel.coins += 100
+                        val newUniqueId = UUID.randomUUID().toString()
                         viewModel.addToPokedex(
                             CaughtPokemon(
                                 pokemonId = pokemonId,
@@ -320,6 +321,7 @@ fun CatchScreen(
                                 rarity = rarity,
                                 xpReward = xpReward,
                                 dateCaught = date,
+                                uniqueId = newUniqueId
                             )
                         )
                     }
