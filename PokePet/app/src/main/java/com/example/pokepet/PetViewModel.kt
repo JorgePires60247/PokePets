@@ -367,19 +367,13 @@ class PetViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Troca o Pokémon ativo pelo novo selecionado na Pokédex.
-     * 1. Guarda o estado do atual na lista de "owned".
-     * 2. Carrega o estado do novo (ou cria um novo estado se for a primeira vez).
-     */
     fun swapActivePokemon(newPokemon: CaughtPokemon, onComplete: () -> Unit) {
         val ref = userRef() ?: return
 
-        // 1. Validar ID do Pokémon atual
-        // Se for nulo (primeira vez), geramos um ID baseado na espécie atual
-        val safeCurrentId = activePokemonId ?: "starter_${activeSpeciesId}_${System.currentTimeMillis()}"
+        // 1. GUARDAR O POKEMON ATUAL (Antes de sair)
+        // Se o activePokemonId for nulo, inventamos um, mas nesta fase já não devia ser
+        val safeCurrentId = activePokemonId ?: "error_${System.currentTimeMillis()}"
 
-        // 2. Preparar os dados para guardar
         val currentData = StoredPokemonData(
             speciesId = activeSpeciesId,
             name = activePokemonName,
@@ -390,58 +384,52 @@ class PetViewModel : ViewModel() {
             currentLevel = currentLevel
         )
 
-        // 3. Guardar o Pokémon ANTIGO
+        // Grava o estado atual (Nível, Vida, etc) na gaveta dele
         ref.child("stored_pokemons").child(safeCurrentId).setValue(currentData)
             .addOnSuccessListener {
 
-                // 4. Carregar o NOVO Pokémon
-                // Usamos um ID único consistente: ID_Nome
-                val newStorageId = "${newPokemon.pokemonId}_${newPokemon.name}"
+                // 2. CARREGAR O NOVO POKEMON (O que selecionaste na Pokedex)
 
-                ref.child("stored_pokemons").child(newStorageId).get()
+                // OERRO COSTUMA ESTAR AQUI: Temos de usar o ID Único que vem da Pokedex
+                val targetId = newPokemon.uniqueId
+
+                // Se o targetId estiver vazio (erro antigo), gera um novo (é isto que causa o reset a Nivel 1)
+                if (targetId.isBlank()) {
+                    android.util.Log.e("Swap", "ERRO: O Pokemon selecionado não tem uniqueId!")
+                    // Fallback para evitar crash, mas vai resetar o nível
+                }
+
+                ref.child("stored_pokemons").child(targetId).get()
                     .addOnSuccessListener { snapshot ->
-                        try {
-                            if (snapshot.exists()) {
-                                // Se já existe guardado, carregamos os stats
-                                val data = snapshot.getValue(StoredPokemonData::class.java)
-                                if (data != null) {
-                                    activeSpeciesId = data.speciesId
-                                    activePokemonName = data.name
-                                    health = data.health
-                                    hygiene = data.hygiene
-                                    food = data.food
-                                    currentXP = data.currentXP
-                                    currentLevel = data.currentLevel
-                                }
-                            } else {
-                                // Se é novo, começa fresco
-                                activeSpeciesId = newPokemon.pokemonId
-                                activePokemonName = newPokemon.name
-                                health = 0.8f
-                                hygiene = 0.8f
-                                food = 0.8f
-                                currentXP = 0f
-                                currentLevel = 1
+                        if (snapshot.exists()) {
+                            // --- CENÁRIO A: JÁ EXISTE (Recuperar Nível) ---
+                            val data = snapshot.getValue(StoredPokemonData::class.java)
+                            if (data != null) {
+                                activeSpeciesId = data.speciesId
+                                activePokemonName = data.name
+                                health = data.health
+                                hygiene = data.hygiene
+                                food = data.food
+                                currentXP = data.currentXP
+                                currentLevel = data.currentLevel // <--- RECUPERA O NÍVEL 2 AQUI
                             }
-
-                            // Define o novo ID ativo e guarda tudo
-                            activePokemonId = newStorageId
-                            saveUserData()
-                            onComplete()
-
-                        } catch (e: Exception) {
-                            // Se der erro ao ler, forçamos um estado novo para não travar
-                            android.util.Log.e("SwapError", "Erro ao trocar: ${e.message}")
+                        } else {
+                            // --- CENÁRIO B: NÃO EXISTE (Criar Novo a Nível 1) ---
+                            // Isto só deve acontecer se for a primeira vez que usas este ID
                             activeSpeciesId = newPokemon.pokemonId
                             activePokemonName = newPokemon.name
-                            activePokemonId = newStorageId
-                            saveUserData()
-                            onComplete()
+                            health = 1.0f
+                            hygiene = 1.0f
+                            food = 1.0f
+                            currentXP = 0f
+                            currentLevel = 1
                         }
+
+                        // Define o novo ID como o ativo
+                        activePokemonId = targetId
+                        saveUserData()
+                        onComplete()
                     }
-            }
-            .addOnFailureListener {
-                android.util.Log.e("SwapError", "Falha ao gravar anterior: ${it.message}")
             }
     }
 

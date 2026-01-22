@@ -3,7 +3,6 @@ package com.example.pokepet
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,8 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -64,7 +61,7 @@ fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
         )
     }
 
-    // --- DIÁLOGO DE QUANTIDADE (O NOVO ANÚNCIO DE COMPRA) ---
+    // --- DIÁLOGO DE QUANTIDADE ---
     pendingPurchase?.let { (type, name, price) ->
         val currentCount = viewModel.inventory.count { it.type == type }
         val limit = if (type == ItemType.MAP) 1 else 10
@@ -120,10 +117,17 @@ fun EnergyScreen(navController: NavController, viewModel: PetViewModel) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // --- CORREÇÃO AQUI: MOSTRAR O POKEMON ATIVO ---
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(150.dp)) {
-                AsyncImage(model = R.drawable.happy, contentDescription = "Pet", modifier = Modifier.size(120.dp))
+                // Aqui usamos o Catálogo para ir buscar a imagem do pokemon que o utilizador tem ativo
+                AsyncImage(
+                    model = PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId),
+                    contentDescription = "Pet",
+                    modifier = Modifier.size(120.dp)
+                )
                 if (showSparkleAnim) AnimatedSparkleEffect()
             }
+            // ---------------------------------------------
 
             Text(text = "Coins: ${viewModel.coins}", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50), fontSize = 18.sp)
 
@@ -240,9 +244,7 @@ fun AnimatedSparkleEffect() {
     Text("✨", fontSize = 45.sp, modifier = Modifier.scale(scale))
 }
 
-
-
-// Função auxiliar para obter ícones (deve estar no mesmo ficheiro ou acessível)
+// Função auxiliar para obter ícones
 fun getItemIcon(type: ItemType): Int {
     return when(type) {
         ItemType.POKEBALL -> R.drawable.ic_pokeball
