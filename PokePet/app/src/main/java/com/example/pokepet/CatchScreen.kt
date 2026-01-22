@@ -1,13 +1,18 @@
 package com.example.pokepet
 
+import kotlin.random.Random
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
-import android.os.VibrationEffect // Import novo
-import android.os.Vibrator // Import novo
+import android.os.VibrationEffect
+import android.os.Vibrator
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -30,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,10 +43,20 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import kotlin.random.Random
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.camera.core.*
+import androidx.camera.core.Preview as CameraPreview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color as AndroidColor
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -205,7 +221,7 @@ fun CatchScreen(
                                 if (!isLaunching && !isWobbling && activeMiniGame == null) {
                                     selectedBall = ball
                                     viewModel.inventory.remove(ball)
-                                    activeMiniGame = (0..3).random()
+                                    activeMiniGame = (0..4).random()
                                     showTutorial = true
                                 }
                             }) {
@@ -263,7 +279,8 @@ fun CatchScreen(
                         0 -> "RING CHALLENGE" to "Tap when the circles align!"
                         1 -> "RAPID TAP" to "Stabilize the ball with 20 taps!"
                         2 -> "REFLEX TEST" to "Tap the berry as soon as it appears!"
-                        else -> "BALANCE" to "Tilt your phone to keep the ball centered!"
+                        3 -> "BALANCE" to "Tilt your phone to keep the ball centered!"
+                        else -> "COLOR HUNT" to "Find the required color in your room!" // Handles ID 4
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(info.first, color = Color.Red, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -277,6 +294,7 @@ fun CatchScreen(
                         1 -> MiniGameRapidTap(icon) { onGameFinished(it) }
                         2 -> MiniGameReaction { onGameFinished(it) }
                         3 -> MiniGameGyroBalance(icon, tiltX) { onGameFinished(it) }
+                        4 -> MiniGameCameraColorHunt { onGameFinished(it) }
                     }
                 }
             }
@@ -495,5 +513,216 @@ fun MiniGameGyroBalance(selectedBallIcon: Int, tiltX: Float, onResult: (Boolean)
             strokeWidth = 6.dp,
             modifier = Modifier.size(60.dp)
         )
+    }
+}
+
+// --- MODELO PARA CORES ---
+data class TargetColor(val name: String, val color: Color)
+
+val targetColors = listOf(
+    TargetColor("RED", Color.Red),
+    TargetColor("GREEN", Color.Green),
+    TargetColor("BLUE", Color.Blue),
+    TargetColor("YELLOW", Color.Yellow)
+)
+
+@Composable
+fun MiniGameCameraColorHunt(onResult: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+
+    // --- VIBRATOR SETUP ---
+    val vibrator = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+    }
+
+    val target = remember { targetColors.random() }
+    var feedbackMessage by remember { mutableStateOf("Find something ${target.name}!") }
+
+    val imageCapture = remember { ImageCapture.Builder().build() }
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    var hasCameraPermission by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasCameraPermission = it }
+
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) launcher.launch(Manifest.permission.CAMERA)
+    }
+
+    if (!hasCameraPermission) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Camera Permission Required", color = Color.White)
+        }
+        return
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { ctx ->
+                val previewView = PreviewView(ctx)
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview = CameraPreview.Builder().build().apply { setSurfaceProvider(previewView.surfaceProvider) }
+
+                    cameraProvider.unbindAll()
+                    // Re-bound without the analyzer since the preview square is gone
+                    cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                }, ContextCompat.getMainExecutor(ctx))
+                previewView
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // UI Overlay
+        Column(Modifier.align(Alignment.Center).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(feedbackMessage, color = target.color, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+
+            Spacer(Modifier.height(20.dp))
+
+            // The Scanning Circle (Now empty inside)
+            Box(contentAlignment = Alignment.Center) {
+                Box(Modifier.size(120.dp).border(4.dp, Color.White, CircleShape))
+                // THE COLOR PREVIEW SQUARE WAS REMOVED FROM HERE
+            }
+
+            Spacer(Modifier.height(40.dp))
+
+            Button(
+                onClick = {
+                    feedbackMessage = "Scanning..."
+                    imageCapture.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+                        override fun onCaptureSuccess(image: ImageProxy) {
+                            val bitmap = imageProxyToBitmap(image)
+                            image.close()
+                            val isMatch = checkColorMatch(bitmap, target.name)
+
+                            ContextCompat.getMainExecutor(context).execute {
+                                if (isMatch) {
+                                    feedbackMessage = "Correct color! 🎉"
+
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        vibrator.vibrate(200)
+                                    }
+
+                                    scope.launch {
+                                        delay(1000)
+                                        onResult(true)
+                                    }
+                                } else {
+                                    feedbackMessage = "Not quite ${target.name}. Try again!"
+                                }
+                            }
+                        }
+                    })
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = target.color)
+            ) {
+                Text("SCAN ${target.name}")
+            }
+        }
+    }
+}
+
+fun imageProxyToBitmap(image: ImageProxy): Bitmap {
+    val buffer = image.planes[0].buffer
+    val bytes = ByteArray(buffer.remaining())
+    buffer.get(bytes)
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+}
+
+fun checkColorMatch(bitmap: Bitmap, targetName: String): Boolean {
+    // Analyze the center pixel
+    val centerX = bitmap.width / 2
+    val centerY = bitmap.height / 2
+    val pixel = bitmap.getPixel(centerX, centerY)
+    val hsv = FloatArray(3)
+    AndroidColor.colorToHSV(pixel, hsv)
+    val hue = hsv[0]
+
+    return when (targetName) {
+        "RED" -> hue in 0f..20f || hue in 340f..360f
+        "GREEN" -> hue in 90f..150f
+        "BLUE" -> hue in 190f..250f
+        "YELLOW" -> hue in 45f..65f
+        else -> false
+    }
+}
+
+// --- NEW PREVIEW FOR YOUR PHONE ---
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Test: Camera Color Hunt")
+@Composable
+fun PreviewCameraColorHunt() {
+    MiniGameCameraColorHunt { println("Result: $it") }
+}
+
+// --- TESTING PREVIEWS ---
+// Use the "Run" icon in the gutter (next to the function name) to launch these on your phone!
+
+@Preview(showBackground = true, name = "Test: Shrinking Ring")
+@Composable
+fun PreviewShrinkingRing() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        MiniGameShrinkingRing(selectedBallIcon = R.drawable.ic_pokeball) { success ->
+            // Output to Logcat to see if you won
+            println("Minigame Result: $success")
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Test: Rapid Tap")
+@Composable
+fun PreviewRapidTap() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        MiniGameRapidTap(selectedBallIcon = R.drawable.ic_ultraball) { success ->
+            println("Minigame Result: $success")
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Test: Reaction Test")
+@Composable
+fun PreviewReaction() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        MiniGameReaction { success ->
+            println("Minigame Result: $success")
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Test: Gyro Balance")
+@Composable
+fun PreviewGyroBalance() {
+    // Note: Sensors might not work perfectly in the preview window,
+    // but deploying this to your phone via the Run icon will work!
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        MiniGameGyroBalance(selectedBallIcon = R.drawable.ic_masterball, tiltX = 0f) { success ->
+            println("Minigame Result: $success")
+        }
     }
 }
