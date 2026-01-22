@@ -1,10 +1,17 @@
 package com.example.pokepet
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -16,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,8 +44,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -51,28 +65,103 @@ sealed class BerryType(val id: Int, @DrawableRes val resId: Int, val label: Stri
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
+    val context = LocalContext.current
     var currentInstruction by remember { mutableStateOf("Drag the berries to the pot!") }
     val droppedBerries = remember { mutableStateSetOf<Int>() }
+
+    // Estados do Processo
     var isMixed by remember { mutableStateOf(false) }
     var isSeasoned by remember { mutableStateOf(false) }
     var isCleaned by remember { mutableStateOf(false) }
+    var isCooled by remember { mutableStateOf(false) } // NOVO ESTADO
 
+    // Progressos
     var seasoningProgress by remember { mutableFloatStateOf(0f) }
     var cleaningProgress by remember { mutableFloatStateOf(0f) }
+    var coolingProgress by remember { mutableFloatStateOf(0f) } // NOVO PROGRESSO
+
     var movingUp by remember { mutableStateOf(true) }
     var sparkleOffset by remember { mutableStateOf<Offset?>(null) }
-
     val foodImageRes = remember { mutableIntStateOf(R.drawable.cooking_pot) }
 
+    // Permissões de Áudio
+    var hasMicPermission by remember {
+        mutableStateOf(
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        hasMicPermission = isGranted
+    }
+
     // --- POKEMON DINÂMICO NA COZINHA ---
-    // Carrega a imagem feliz da espécie ativa guardada no ViewModel
     val pokemonImageRes = PokemonCatalog.getPokemonImage(viewModel.activeSpeciesId, "HAPPY")
 
     var potBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val berries = listOf(BerryType.Chesto, BerryType.Sitrus, BerryType.Oran)
     val allBerriesDropped by remember { derivedStateOf { droppedBerries.size == berries.size } }
 
-    // Lógica da Barra de Tempero
+    // 1. Efeito: Pedir permissão quando chegar à fase de soprar
+    LaunchedEffect(isCleaned) {
+        if (isCleaned && !isCooled && !hasMicPermission) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // 2. Lógica do Microfone (Soprar)
+    LaunchedEffect(isCleaned, isCooled, hasMicPermission) {
+        if (isCleaned && !isCooled && hasMicPermission) {
+            withContext(Dispatchers.IO) {
+                // Configuração básica do AudioRecord
+                val sampleRate = 44100
+                val channelConfig = AudioFormat.CHANNEL_IN_MONO
+                val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+                val minBufSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufSize)
+                    val buffer = ShortArray(minBufSize)
+
+                    try {
+                        audioRecord.startRecording()
+                        while (isActive && coolingProgress < 1f) {
+                            val read = audioRecord.read(buffer, 0, minBufSize)
+                            if (read > 0) {
+                                // Calcular a amplitude média (volume)
+                                var sum = 0.0
+                                for (i in 0 until read) {
+                                    sum += abs(buffer[i].toInt())
+                                }
+                                val amplitude = sum / read
+
+                                // Se o volume for alto (soprar é barulhento), aumenta o progresso
+                                // O valor 500 é um threshold ajustável. Soprar direto no mic gera valores altos.
+                                if (amplitude > 500) {
+                                    coolingProgress += 0.02f // Velocidade de arrefecimento
+                                }
+                            }
+                            delay(50) // Pequeno delay para não bloquear
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        audioRecord.stop()
+                        audioRecord.release()
+                    }
+
+                    // Se saiu do loop porque encheu
+                    if (coolingProgress >= 1f) {
+                        isCooled = true
+                    }
+                }
+            }
+        }
+    }
+
+    // Lógica da Barra de Tempero (Animação automática)
     LaunchedEffect(isMixed, isSeasoned) {
         if (isMixed && !isSeasoned) {
             while (true) {
@@ -88,8 +177,8 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
         }
     }
 
-    // Atualização de instruções e imagens conforme as etapas
-    LaunchedEffect(allBerriesDropped, isMixed, isSeasoned, isCleaned) {
+    // Atualização de instruções e imagens
+    LaunchedEffect(allBerriesDropped, isMixed, isSeasoned, isCleaned, isCooled) {
         when {
             !allBerriesDropped -> {
                 foodImageRes.intValue = R.drawable.cooking_pot
@@ -106,10 +195,15 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                 foodImageRes.intValue = R.drawable.ic_curry_dirty
                 currentInstruction = "What a mess! Clean the edges of the plate!"
             }
-            isCleaned -> {
+            // NOVO ESTADO: ARREFECER
+            isCleaned && !isCooled -> {
                 foodImageRes.intValue = R.drawable.hot_curry
-                // Usa o nome dinâmico do Pokémon para a instrução final
-                currentInstruction = "All done! Click on your ${viewModel.activePokemonName} to feed it!"
+                currentInstruction = "It's too hot! Blow into the mic to cool it!"
+            }
+            isCooled -> {
+                // Pode manter o hot_curry ou mudar para outra imagem se tiveres
+                foodImageRes.intValue = R.drawable.hot_curry
+                currentInstruction = "Bon Appétit! Click on ${viewModel.activePokemonName} to feed!"
             }
         }
     }
@@ -118,17 +212,13 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
         ShakeDetector(onShakeDetected = { isMixed = true })
     }
 
-    // --- SCAFFOLD COM BOTÃO DE VOLTAR ---
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Kitchen") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -155,10 +245,15 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                 Text(currentInstruction, fontSize = 16.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(20.dp))
 
+                // Barras de Progresso Condicionais
                 if (isMixed && !isSeasoned) {
                     CookingProgressBar(progress = seasoningProgress, color = Color(0xFF4CAF50), hasTarget = true, label = "SPICE IT UP")
                 } else if (isSeasoned && !isCleaned) {
                     CookingProgressBar(progress = cleaningProgress, color = Color(0xFF00BCD4), label = "CLEAN EDGES")
+                } else if (isCleaned && !isCooled) {
+                    // BARRA DE ARREFECIMENTO
+                    CookingProgressBar(progress = coolingProgress, color = Color(0xFF2196F3), label = "COOLING DOWN")
+                    Icon(imageVector = Icons.Default.Mic, contentDescription = "Mic", tint = Color.Gray)
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
@@ -189,7 +284,18 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                                         }
                                 )
                             } else {
+                                // Imagem normal
                                 Image(painterResource(targetRes), null, Modifier.fillMaxSize())
+
+                                // Efeito visual de Fumo/Vapor quando está quente e a ser arrefecido
+                                if (isCleaned && !isCooled) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.White.copy(alpha = (1f - coolingProgress) * 0.4f)) // Fica menos branco conforme arrefece
+                                            .clip(CircleShape)
+                                    )
+                                }
                             }
                         }
                     }
@@ -206,15 +312,14 @@ fun FoodScreen(navController: NavController, viewModel: PetViewModel) {
                 }
             }
 
-            // POKEMON DINÂMICO NO FUNDO
+            // POKEMON DINÂMICO
             Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)) {
                 Image(
                     painter = painterResource(pokemonImageRes),
                     contentDescription = "Active Pokemon",
                     modifier = Modifier
                         .size(150.dp)
-                        .clickable(enabled = isCleaned) {
-                            // Chama a função de alimentar e guarda o estado no Firebase
+                        .clickable(enabled = isCooled) { // Só pode comer se estiver ARREFECIDO (isCooled)
                             viewModel.feed()
                             navController.popBackStack()
                         }
@@ -243,13 +348,12 @@ fun DraggableBerryItem(berry: BerryType, isDropped: Boolean, potBounds: androidx
     if (isDropped) return
 
     var offset by remember { mutableStateOf(Offset.Zero) }
-    var startPosition by remember { mutableStateOf(Offset.Zero) } // 1. Nova variável para saber onde a baga nasce
+    var startPosition by remember { mutableStateOf(Offset.Zero) }
 
     val density = LocalDensity.current
 
     Column(
         modifier = Modifier
-            // 2. Detetar onde a baga está no ecrã (Coordenadas Globais)
             .onGloballyPositioned { coordinates ->
                 if (offset == Offset.Zero) {
                     startPosition = coordinates.positionInRoot()
@@ -261,7 +365,6 @@ fun DraggableBerryItem(berry: BerryType, isDropped: Boolean, potBounds: androidx
                     onDragEnd = {
                         val itemSizePx = with(density) { 50.dp.toPx() }
                         val centerOffset = Offset(itemSizePx / 2, itemSizePx / 2)
-
                         val absolutePosition = startPosition + offset + centerOffset
 
                         if (potBounds.contains(absolutePosition)) {
