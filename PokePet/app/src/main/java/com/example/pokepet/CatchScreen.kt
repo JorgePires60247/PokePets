@@ -6,6 +6,8 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
+import android.os.VibrationEffect // Import novo
+import android.os.Vibrator // Import novo
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -22,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -51,16 +52,26 @@ fun CatchScreen(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // --- VIBRATOR SETUP ---
+    val vibrator = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+    }
+
     val inventoryBalls = viewModel.inventory.filter {
         it.type == ItemType.POKEBALL || it.type == ItemType.ULTRABALL || it.type == ItemType.MASTERBALL
     }
 
-
     val extractedName = remember(pokemonId) {
         try {
-            val fullName = context.resources.getResourceEntryName(pokemonId) // Retorna "p_pikachu"
-            fullName.removePrefix("p_") // Retorna "pikachu"
-                .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } // "Pikachu"
+            val fullName = context.resources.getResourceEntryName(pokemonId)
+            fullName.removePrefix("p_")
+                .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         } catch (e: Exception) {
             "Unknown"
         }
@@ -78,7 +89,7 @@ fun CatchScreen(
     var showTutorial by remember { mutableStateOf(false) }
     var gameStarted by remember { mutableStateOf(false) }
 
-    // 1. Animação de Lançamento (Y) e Rotação (Giroscópio visual)
+    // Animações (Y e Rotação)
     val ballYOffset by animateIntOffsetAsState(
         targetValue = if (isLaunching) IntOffset(0, -800) else IntOffset(0, 0),
         animationSpec = tween(800, easing = LinearOutSlowInEasing),
@@ -91,34 +102,45 @@ fun CatchScreen(
         label = "launchRotate"
     )
 
-    // 2. Animação de Abanar no chão (Wobble)
     val wobbleRotation by animateFloatAsState(
         targetValue = if (isWobbling) (if (wobbleCount % 2 == 0) -15f else 15f) else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
         label = "wobbleRotate"
     )
 
-    // --- FUNÇÃO: SEQUÊNCIA DE CAPTURA DRAMÁTICA ---
+    // --- FUNÇÃO: SEQUÊNCIA DE CAPTURA COM VIBRAÇÃO ---
     fun startCatchSequence() {
         scope.launch {
             // Fase 1: A bola voa
             isLaunching = true
             delay(800)
 
-            // Fase 2: Impacto (O Pokémon entra na bola)
+            // Fase 2: Impacto
             pokemonVisible = false
-            isLaunching = false // Para a animação de voo
+            isLaunching = false
             isWobbling = true
 
-            // Fase 3: O suspense (1... 2... 3...)
+            // Fase 3: O suspense (1... 2... 3...) com Vibração
             repeat(3) {
                 delay(1000)
                 wobbleCount++
+
+                // --- CÓDIGO DE VIBRAÇÃO ---
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Vibra por 150ms com amplitude padrão
+                    vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    // Método antigo para Androids mais velhos
+                    vibrator.vibrate(150)
+                }
+                // -------------------------
             }
 
-            // Fase 4: Cálculo da probabilidade
+            // Fase 4: Resultado
             delay(500)
             isWobbling = false
+
+            // Vibração final mais longa se capturar, ou dupla rápida se falhar (Opcional, mas fica fixe)
             val chance = (1..100).random()
             val caught = when (selectedBall?.type) {
                 ItemType.POKEBALL -> chance < 35
@@ -126,6 +148,14 @@ fun CatchScreen(
                 ItemType.MASTERBALL -> true
                 else -> false
             }
+
+            // Pequena vibração final para confirmar o resultado
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator.vibrate(50)
+            }
+
             catchResult = if (caught) "Success" else "Failed"
         }
     }
@@ -137,12 +167,11 @@ fun CatchScreen(
         if (success) {
             startCatchSequence()
         } else {
-            // Se falhou o minijogo, o Pokémon foge imediatamente
             catchResult = "Failed"
         }
     }
 
-    // --- SENSORES PARA O MINIJOGO GYRO ---
+    // --- SENSORES ---
     val sensorManager = remember { context.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
     val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
     var tiltX by remember { mutableStateOf(0f) }
@@ -161,10 +190,10 @@ fun CatchScreen(
         onDispose { sensorManager.unregisterListener(sensorListener) }
     }
 
-    // --- INTERFACE ---
+    // --- INTERFACE (O resto mantém-se igual) ---
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-            // Barra superior de inventário
+            // Barra superior
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 20.dp)) {
                 Image(painterResource(R.drawable.ic_backpack), null, Modifier.size(50.dp))
                 Spacer(Modifier.width(12.dp))
@@ -194,7 +223,6 @@ fun CatchScreen(
             Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth().height(450.dp)) {
                 Image(painterResource(R.drawable.ic_grass_platform), null, Modifier.width(280.dp), contentScale = ContentScale.FillWidth)
 
-                // Pokémon
                 if (pokemonVisible) {
                     Image(
                         painter = painterResource(pokemonId), null,
@@ -203,8 +231,6 @@ fun CatchScreen(
                     )
                 }
 
-                // Pokébola (com rotação ou wobble)
-                // POKÉBOLA COM EFEITOS (ATUALIZADA)
                 if (selectedBall != null && (!pokemonVisible || isLaunching)) {
                     Image(
                         painter = painterResource(selectedBall!!.icon),
@@ -223,7 +249,6 @@ fun CatchScreen(
                 }
             }
 
-            // Contador visual 1, 2, 3
             if (isWobbling && wobbleCount > 0) {
                 Text(text = "$wobbleCount...", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.Gray)
             }
@@ -231,7 +256,6 @@ fun CatchScreen(
             Spacer(Modifier.weight(0.5f))
         }
 
-        // Overlay de Minijogos
         activeMiniGame?.let { gameId ->
             Box(Modifier.fillMaxSize().background(Color.Black.copy(0.85f)), contentAlignment = Alignment.Center) {
                 if (showTutorial) {
@@ -259,7 +283,6 @@ fun CatchScreen(
         }
     }
 
-    // Diálogo de Resultado
     if (catchResult != null) {
         AlertDialog(
             onDismissRequest = { },
@@ -269,8 +292,6 @@ fun CatchScreen(
                 Button(onClick = {
                     if (catchResult == "Success") {
                         val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-
-                        // Determinar raridade e local (Pode ser melhorado passando via nav)
                         val rarity = if (xpReward > 0.3f) "Legendary" else if (xpReward > 0.1f) "Rare" else "Common"
                         viewModel.gainXP(xpReward)
                         viewModel.coins += 100
@@ -292,9 +313,7 @@ fun CatchScreen(
     }
 }
 
-// --- SUB-COMPONENTES DOS MINIJOGOS ---
-
-
+// ... (Os Minijogos mantêm-se iguais) ...
 @Composable
 fun MiniGameShrinkingRing(selectedBallIcon: Int, onResult: (Boolean) -> Unit) {
     var scale by remember { mutableStateOf(2f) }
